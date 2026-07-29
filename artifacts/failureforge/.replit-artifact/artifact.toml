@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "FailureForge"
+version = "1.0.0"
+id = "artifacts/failureforge"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24835
+
+[services.development]
+run = "pnpm --filter @workspace/failureforge run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/failureforge", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/failureforge/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24835"
+BASE_PATH = "/"
