@@ -29,6 +29,9 @@ export interface Recommendation {
   priority: "low" | "medium" | "high" | "critical";
   affectedPillars: Pillar[];
   estimatedScoreImpact: Partial<Record<Pillar, number>>;
+  estimatedCapacityGain?: number;
+  estimatedMonthlyCostDelta?: number;
+  estimatedOutageLossReduction?: number;
   action: RecommendationAction;
 }
 
@@ -57,6 +60,19 @@ export interface SimulationComponentImpact {
   exposure?: "none" | "low" | "medium" | "high" | "critical";
 }
 
+export interface LiveIncidentImpact {
+  demandCapacity: number;
+  healthyCapacity: number;
+  degradedCapacity: number;
+  capacityHeadroomPercent: number;
+  latencyBand: "normal" | "elevated" | "severe" | "unavailable";
+  failedRequestPaths: string[];
+  protectedComponents: SimulationComponentImpact[];
+  estimatedBusinessImpactUnits: number;
+  pillarScores: Record<Pillar, number>;
+  pillarExplanations: ScoreExplanation[];
+}
+
 export interface SimulationResult {
   scenario: FailureScenario;
   events: SimulationEvent[];
@@ -73,6 +89,8 @@ export interface SimulationResult {
   dataLossRisk: "none" | "low" | "medium" | "high" | "critical";
   pillarScoresBefore: Record<Pillar, number>;
   pillarScoresAfter: Record<Pillar, number>;
+  architecturePosture: Record<Pillar, number>;
+  liveIncident: LiveIncidentImpact;
   scoreExplanations: ScoreExplanation[];
   costBefore: number;
   costAfter: number;

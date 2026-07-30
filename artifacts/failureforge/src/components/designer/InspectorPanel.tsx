@@ -72,7 +72,8 @@ export default function InspectorPanel() {
               <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Architecture checks</h3>
               {validationIssues.slice(0, 5).map(issue => <div key={issue.id} className={`text-xs p-2 rounded border flex gap-2 ${issue.severity === "error" ? "border-app-red/40 text-app-red" : "border-app-amber/40 text-app-amber"}`}><AlertTriangle className="w-3.5 h-3.5 shrink-0" />{issue.message}</div>)}
             </div>}
-            <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Six Pillars</h3>
+            <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">{simulationResult ? "Live Incident Health" : "Architecture Posture"}</h3>
+            {simulationResult && <p className="text-xs text-text-secondary -mt-2">Scores reflect the active incident; Security remains stable unless controls are exposed.</p>}
             {(Object.keys(pillarLabels) as Pillar[]).map(pillar => {
               const Icon = pillarIcons[pillar];
               const score = displayScores[pillar];

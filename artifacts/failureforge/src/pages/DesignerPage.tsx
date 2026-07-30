@@ -5,6 +5,7 @@ import ArchitectureCanvas from '../components/canvas/ArchitectureCanvas';
 import InspectorPanel from '../components/designer/InspectorPanel';
 import SimulationPanel from '../components/designer/SimulationPanel';
 import GuidedDemo from '../components/designer/GuidedDemo';
+import ResilienceLab from '../components/designer/ResilienceLab';
 import { ReactFlowProvider } from '@xyflow/react';
 
 export default function DesignerPage() {
@@ -18,6 +19,7 @@ export default function DesignerPage() {
           <ReactFlowProvider>
             <ArchitectureCanvas />
           </ReactFlowProvider>
+          <ResilienceLab />
           <SimulationPanel />
         </div>
         <InspectorPanel />

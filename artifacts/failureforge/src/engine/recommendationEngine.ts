@@ -19,6 +19,19 @@ export const generateRecommendations = (
   const hasCache = nodes.some(n => n.type === "cache");
   const zonesUsed = new Set(nodes.filter(n => n.type !== "users").map(n => n.zoneId));
 
+  if (result.scenario.type === "zone-outage") {
+    const failedApps = result.failedComponents.filter(component => nodes.find(node => node.id === component.id)?.type === "web-app");
+    if (failedApps.length) recommendations.push({
+      id: "rec-cross-zone-capacity", title: "Reserve cross-zone application capacity", description: "Add a healthy target in a second availability zone and register it with the load balancer.", priority: "critical",
+      affectedPillars: ["reliability", "performance", "cost", "sustainability"], estimatedScoreImpact: { reliability: 18, performance: 10, cost: -8, sustainability: -4 }, estimatedCapacityGain: failedApps.length * 5, estimatedMonthlyCostDelta: 50, estimatedOutageLossReduction: result.liveIncident.estimatedBusinessImpactUnits,
+      action: { type: "add-node", componentType: "web-app", zoneId: "az-b", configurationPreset: { redundant: true, autoscaling: true, healthChecksEnabled: true, monthlyCostUnits: 50 }, connectTo: hasLoadBalancer ? [{ nodeId: nodes.find(node => node.type === "load-balancer")!.id, direction: "to", dependencyType: "synchronous", required: true }] : [] }
+    });
+    if (databases.length > 0 && !hasDbReplica) recommendations.push({
+      id: "rec-multi-az-failover", title: "Enable multi-AZ database failover", description: "Create a standby replica in another zone and test the failover path.", priority: "critical", affectedPillars: ["reliability", "operational-excellence", "cost"], estimatedScoreImpact: { reliability: 16, "operational-excellence": 8, cost: -8 }, estimatedMonthlyCostDelta: 120, estimatedOutageLossReduction: Math.round(result.liveIncident.estimatedBusinessImpactUnits * .7),
+      action: { type: "add-node", componentType: "database", zoneId: "az-b", configurationPreset: { redundant: true, failoverEnabled: true, monthlyCostUnits: 120 }, connectTo: [{ nodeId: databases[0].id, direction: "to", dependencyType: "replication", required: false }] }
+    });
+  }
+
   if (result.scenario.type === "traffic-spike" && !webApps.some(n => n.configuration.autoscaling)) {
     recommendations.push({
       id: "rec-enable-autoscaling",

@@ -225,7 +225,7 @@ export default function SimulationPanel() {
               <div className="rounded-lg border border-border bg-bg-deep p-4">
                 <div className="text-xs text-text-secondary uppercase">Monthly cost</div>
                 <div className="text-2xl font-bold mt-2 text-text-primary">{simulationResult.costBefore} units</div>
-                <div className="text-xs text-text-secondary mt-1">Δ {simulationResult.costDelta} after fixes</div>
+                <div className="text-xs text-text-secondary mt-1">Incident loss: {simulationResult.liveIncident.estimatedBusinessImpactUnits} units</div>
               </div>
               <div className="rounded-lg border border-border bg-bg-deep p-4">
                 <div className="flex items-center gap-2 text-xs text-text-secondary uppercase"><Clock className="w-4 h-4" /> Recovery estimate</div>
@@ -246,6 +246,12 @@ export default function SimulationPanel() {
               <p className="text-sm text-text-secondary mt-2">{simulationResult.rootCause}</p>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-app-red/30 bg-app-red/5 p-3"><div className="text-xs uppercase text-text-secondary">Live incident impact</div><div className="mt-1 text-lg font-bold text-app-red capitalize">{simulationResult.impactSeverity}</div><p className="mt-1 text-xs text-text-secondary">{simulationResult.customerImpact}</p></div>
+              <div className="rounded-lg border border-border bg-bg-deep p-3"><div className="text-xs uppercase text-text-secondary">Capacity headroom</div><div className={`mt-1 text-lg font-bold ${simulationResult.liveIncident.capacityHeadroomPercent < 0 ? "text-app-red" : "text-app-green"}`}>{simulationResult.liveIncident.capacityHeadroomPercent}%</div><p className="mt-1 text-xs text-text-secondary">{simulationResult.liveIncident.healthyCapacity + simulationResult.liveIncident.degradedCapacity} of {simulationResult.liveIncident.demandCapacity} demand units served</p></div>
+              <div className="rounded-lg border border-border bg-bg-deep p-3"><div className="text-xs uppercase text-text-secondary">Latency band</div><div className="mt-1 text-lg font-bold text-app-amber capitalize">{simulationResult.liveIncident.latencyBand}</div><p className="mt-1 text-xs text-text-secondary">Failed request path: {simulationResult.liveIncident.failedRequestPaths.join(", ") || "none"}</p></div>
+            </div>
+
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-3">Affected components</h3>
               {simulationResult.affectedComponents.length ? (
@@ -264,9 +270,14 @@ export default function SimulationPanel() {
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-3">Security exposure</h3>
               <p className="text-sm text-text-secondary">{simulationResult.exposedComponents.map(component => `${component.name} (${component.exposure})`).join(", ")}</p>
             </div>}
+            {simulationResult.liveIncident.protectedComponents.length > 0 && <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-2">Protected components</h3>
+              <p className="text-sm text-text-secondary">{simulationResult.liveIncident.protectedComponents.slice(0, 5).map(component => component.name).join(", ")}{simulationResult.liveIncident.protectedComponents.length > 5 ? "…" : ""}</p>
+            </div>}
 
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-3">Pillar score impact</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-1">Architecture posture & live incident</h3>
+              <p className="text-xs text-text-secondary mb-3">Left is durable Well-Architected posture. Right is live health during this incident.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {Object.entries(simulationResult.pillarScoresBefore).map(([pillar, before]) => {
                   const after = simulationResult.pillarScoresAfter[pillar as keyof typeof simulationResult.pillarScoresAfter];
@@ -275,9 +286,9 @@ export default function SimulationPanel() {
                     <div key={pillar} className="rounded-md border border-border bg-bg-deep p-3">
                       <div className="text-xs capitalize text-text-secondary">{pillar.replace("-", " ")}</div>
                       <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-sm text-text-secondary">{before}</span>
+                        <span className="text-sm text-text-secondary" title="Architecture posture">{before}</span>
                         <span className="text-text-secondary">→</span>
-                        <span className="text-lg font-bold text-text-primary">{after}</span>
+                        <span className="text-lg font-bold text-text-primary" title="Live incident health">{after}</span>
                         <span className={`ml-auto text-xs font-bold ${delta < 0 ? "text-app-red" : delta > 0 ? "text-app-green" : "text-text-secondary"}`}>
                           {delta < 0 ? "▼" : delta > 0 ? "▲" : "—"} {Math.abs(delta)}
                         </span>
@@ -288,10 +299,10 @@ export default function SimulationPanel() {
                 })}
               </div>
             </div>
-            {comparisonResult && <div className="rounded-lg border border-app-cyan/30 bg-app-cyan/5 p-4"><h3 className="text-sm font-semibold text-app-cyan">Before-and-after comparison</h3><p className="text-sm text-text-secondary mt-1">Availability: {comparisonResult.customerAvailability}% → {simulationResult.customerAvailability}%</p><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">{Object.keys(simulationResult.pillarScoresAfter).map(pillar => <div key={pillar} className="text-xs text-text-secondary capitalize">{pillar.replace("-", " ")}: {comparisonResult.pillarScoresBefore[pillar as keyof typeof comparisonResult.pillarScoresBefore]} → {simulationResult.pillarScoresBefore[pillar as keyof typeof simulationResult.pillarScoresBefore]}</div>)}</div></div>}
+            {comparisonResult && <div className="rounded-lg border border-app-cyan/30 bg-app-cyan/5 p-4"><h3 className="text-sm font-semibold text-app-cyan">Before-and-after comparison</h3><p className="text-sm text-text-secondary mt-1">Availability: {comparisonResult.customerAvailability}% → {simulationResult.customerAvailability}% · Monthly cost: {comparisonResult.costBefore} → {simulationResult.costBefore} units · Incident loss: {comparisonResult.liveIncident.estimatedBusinessImpactUnits} → {simulationResult.liveIncident.estimatedBusinessImpactUnits} units</p><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">{Object.keys(simulationResult.pillarScoresAfter).map(pillar => <div key={pillar} className="text-xs text-text-secondary capitalize">{pillar.replace("-", " ")}: {comparisonResult.pillarScoresAfter[pillar as keyof typeof comparisonResult.pillarScoresAfter]} → {simulationResult.pillarScoresAfter[pillar as keyof typeof simulationResult.pillarScoresAfter]}</div>)}</div></div>}
             {simulationResult.recommendations.length > 0 && <div>
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-3">Recommended fixes</h3>
-              <div className="space-y-2">{simulationResult.recommendations.slice(0, 3).map(recommendation => <div key={recommendation.id} className="rounded-md border border-border bg-bg-deep p-3 flex items-center gap-3"><div className="flex-1"><div className="font-semibold text-sm text-app-cyan">{recommendation.title}</div><div className="text-xs text-text-secondary">{recommendation.description}</div></div><button onClick={() => applyRecommendation(recommendation.action)} className="px-3 py-1.5 rounded bg-app-blue text-white text-xs font-semibold">Apply</button></div>)}</div>
+              <div className="space-y-2">{simulationResult.recommendations.slice(0, 3).map(recommendation => <div key={recommendation.id} className="rounded-md border border-border bg-bg-deep p-3 flex items-center gap-3"><div className="flex-1"><div className="font-semibold text-sm text-app-cyan">{recommendation.title}</div><div className="text-xs text-text-secondary">{recommendation.description}</div><div className="mt-1 flex gap-2 text-[10px] text-text-secondary"><span>Capacity +{recommendation.estimatedCapacityGain ?? 0}</span><span>Cost {recommendation.estimatedMonthlyCostDelta ? `+${recommendation.estimatedMonthlyCostDelta}` : "—"}</span><span>Loss avoided {recommendation.estimatedOutageLossReduction ?? 0}</span></div></div><button onClick={() => applyRecommendation(recommendation.action)} className="px-3 py-1.5 rounded bg-app-blue text-white text-xs font-semibold">Apply</button></div>)}</div>
             </div>}
 
             <button onClick={resetSimulation} className="w-full py-2.5 rounded-md bg-bg-elevated border border-border text-text-primary font-semibold hover:bg-border flex items-center justify-center gap-2">
