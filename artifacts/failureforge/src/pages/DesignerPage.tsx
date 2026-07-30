@@ -10,6 +10,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 export default function DesignerPage() {
   return (
     <div className="h-screen w-full flex flex-col bg-background text-foreground overflow-hidden">
+      <div className="md:hidden bg-app-amber/15 text-app-amber text-xs px-3 py-2 text-center">FailureForge is designed for desktop screens. Rotate or use a wider display for the full editor.</div>
       <Navigation />
       <div className="flex-1 flex overflow-hidden">
         <ComponentLibrary />

@@ -19,6 +19,57 @@ export const generateRecommendations = (
   const hasCache = nodes.some(n => n.type === "cache");
   const zonesUsed = new Set(nodes.filter(n => n.type !== "users").map(n => n.zoneId));
 
+  if (result.scenario.type === "traffic-spike" && !webApps.some(n => n.configuration.autoscaling)) {
+    recommendations.push({
+      id: "rec-enable-autoscaling",
+      title: "Enable application autoscaling",
+      description: "Scale application capacity automatically before burst traffic exhausts the running instances.",
+      priority: "critical",
+      affectedPillars: ["performance", "reliability", "cost"],
+      estimatedScoreImpact: { performance: 12, reliability: 8, cost: 5 },
+      action: {
+        type: "update-config",
+        nodeId: webApps[0]?.id ?? "all",
+        changes: { autoscaling: true }
+      }
+    });
+  }
+
+  if (result.scenario.type === "credential-compromise") {
+    const compromisedNode = nodes.find(n => result.scenario.targetNodeIds.includes(n.id));
+    if (compromisedNode) {
+      recommendations.push({
+        id: "rec-rotate-credentials",
+        title: "Rotate and restrict credentials",
+        description: "Revoke the exposed secret, issue a least-privilege replacement, and monitor its use.",
+        priority: "critical",
+        affectedPillars: ["security", "operational-excellence"],
+        estimatedScoreImpact: { security: 20, "operational-excellence": 8 },
+        action: {
+          type: "update-config",
+          nodeId: compromisedNode.id,
+          changes: { publiclyAccessible: false, monitoringEnabled: true }
+        }
+      });
+    }
+  }
+
+  if (result.scenario.type === "deployment-regression" && webApps.length > 0) {
+    recommendations.push({
+      id: "rec-deployment-guardrails",
+      title: "Add deployment health guardrails",
+      description: "Use canary releases, automated health checks, and rollback on error-rate thresholds.",
+      priority: "critical",
+      affectedPillars: ["operational-excellence", "reliability"],
+      estimatedScoreImpact: { "operational-excellence": 18, reliability: 12 },
+      action: {
+        type: "update-config",
+        nodeId: webApps[0].id,
+        changes: { monitoringEnabled: true }
+      }
+    });
+  }
+
   if (databases.length > 0 && !hasDbReplica) {
     recommendations.push({
       id: "rec-db-replica",
@@ -27,7 +78,7 @@ export const generateRecommendations = (
       priority: "critical",
       affectedPillars: ["reliability", "cost"],
       estimatedScoreImpact: { reliability: 18, cost: -8 },
-      action: { type: "add-node", componentType: "database", zoneId: zonesUsed.has("az-b") ? "az-b" : "az-a" }
+      action: { type: "add-node", componentType: "database", zoneId: zonesUsed.has("az-b") ? "az-b" : "az-b", configurationPreset: { redundant: true, failoverEnabled: true, recoveryTimeMinutes: 15, monthlyCostUnits: 120 }, connectTo: databases[0] ? [{ nodeId: databases[0].id, direction: "to", dependencyType: "replication", required: false }] : [] }
     });
   }
 
@@ -39,7 +90,7 @@ export const generateRecommendations = (
       priority: "critical",
       affectedPillars: ["reliability", "performance"],
       estimatedScoreImpact: { reliability: 10, performance: 5 },
-      action: { type: "add-node", componentType: "web-app", zoneId: webApps[0].zoneId === "az-a" ? "az-b" : "az-a" }
+      action: { type: "add-node", componentType: "web-app", zoneId: webApps[0].zoneId === "az-a" ? "az-b" : "az-a", configurationPreset: { redundant: true, autoscaling: true, healthChecksEnabled: true }, connectTo: hasLoadBalancer ? [{ nodeId: nodes.find(node => node.type === "load-balancer")!.id, direction: "to", dependencyType: "synchronous", required: true }] : [] }
     });
   }
 
@@ -63,7 +114,7 @@ export const generateRecommendations = (
       priority: "high",
       affectedPillars: ["operational-excellence", "reliability"],
       estimatedScoreImpact: { "operational-excellence": 10, reliability: 8 },
-      action: { type: "add-node", componentType: "backup" }
+      action: { type: "add-node", componentType: "backup", connectTo: databases[0] ? [{ nodeId: databases[0].id, direction: "to", dependencyType: "backup", required: false }] : [] }
     });
   }
 

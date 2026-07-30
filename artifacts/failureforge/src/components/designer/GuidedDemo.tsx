@@ -48,11 +48,13 @@ export default function GuidedDemo() {
   };
 
   const autoApplyFixes = () => {
-    // 1. Add Load Balancer
-    applyRecommendation({ type: "add-node", componentType: "load-balancer", zoneId: "global" });
-    // 2. Add second Web App
-    applyRecommendation({ type: "add-node", componentType: "web-app", zoneId: "az-b" });
-    // In a real app we'd auto-wire the edges here too for the demo
+    applyRecommendation({ type: "apply-architecture", name: "guided-resilience", zones: [{ id: "az-b", name: "AZ-B", color: "#121F30" }], nodes: [
+      { id: "demo-lb", type: "load-balancer", name: "Load Balancer", zoneId: "global", position: { x: 240, y: 220 }, configuration: { capacity: 10, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: true, backupsEnabled: false, monitoringEnabled: true, healthChecksEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 25 } },
+      { id: "demo-app-b", type: "web-app", name: "Web App B", zoneId: "az-b", position: { x: 480, y: 340 }, configuration: { capacity: 5, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, healthChecksEnabled: true, rollbackEnabled: true, deploymentStrategy: "rolling", recoveryTimeMinutes: 10, monthlyCostUnits: 50 } },
+      { id: "demo-monitoring", type: "monitoring", name: "Monitoring", zoneId: "global", position: { x: 300, y: 80 }, configuration: { capacity: 1, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 15 } }
+    ], edges: [
+      { source: "node-users", target: "demo-lb", type: "synchronous", required: true }, { source: "demo-lb", target: "node-webapp-1", type: "synchronous", required: true }, { source: "demo-lb", target: "demo-app-b", type: "synchronous", required: true }, { source: "demo-app-b", target: "node-db-1", type: "synchronous", required: true }, { source: "demo-app-b", target: "demo-monitoring", type: "monitoring", required: false }
+    ] });
   };
 
   if (!isVisible) return null;

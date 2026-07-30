@@ -2,7 +2,7 @@ import React from 'react';
 import { useArchitectureStore } from '../../store/architectureStore';
 import { calculateScores, getOverallHealth, getHealthLabel } from '../../engine/scoringEngine';
 import { Pillar } from '../../types/architecture';
-import { Shield, Settings, Activity, Zap, DollarSign, Leaf } from 'lucide-react';
+import { Shield, Settings, Activity, Zap, DollarSign, Leaf, Trash2, AlertTriangle } from 'lucide-react';
 
 const pillarIcons: Record<Pillar, React.ElementType> = {
   "reliability": Shield,
@@ -32,7 +32,7 @@ const pillarColors: Record<Pillar, string> = {
 };
 
 export default function InspectorPanel() {
-  const { architecture, selectedNodeId, updateNode, simulationResult, applyRecommendation } = useArchitectureStore();
+  const { architecture, selectedNodeId, updateNode, deleteNode, simulationResult, applyRecommendation, validationIssues } = useArchitectureStore();
   
   const selectedNode = architecture.nodes.find(n => n.id === selectedNodeId);
   const scores = calculateScores(architecture);
@@ -68,6 +68,10 @@ export default function InspectorPanel() {
           </div>
 
           <div className="space-y-4">
+            {validationIssues.length > 0 && <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Architecture checks</h3>
+              {validationIssues.slice(0, 5).map(issue => <div key={issue.id} className={`text-xs p-2 rounded border flex gap-2 ${issue.severity === "error" ? "border-app-red/40 text-app-red" : "border-app-amber/40 text-app-amber"}`}><AlertTriangle className="w-3.5 h-3.5 shrink-0" />{issue.message}</div>)}
+            </div>}
             <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Six Pillars</h3>
             {(Object.keys(pillarLabels) as Pillar[]).map(pillar => {
               const Icon = pillarIcons[pillar];
@@ -142,13 +146,14 @@ export default function InspectorPanel() {
               <span className="px-2 py-1 bg-bg-deep border border-border rounded text-xs text-text-secondary font-medium uppercase tracking-wider">
                 {selectedNode.type}
               </span>
-              <span className="px-2 py-1 bg-bg-deep border border-border rounded text-xs text-text-secondary font-medium uppercase tracking-wider">
-                {selectedNode.zoneId}
-              </span>
+              <select value={selectedNode.zoneId} onChange={event => updateNode(selectedNode.id, { zoneId: event.target.value })} className="bg-bg-deep border border-border rounded text-xs text-text-secondary px-2">
+                {architecture.zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
+              </select>
             </div>
 
             <div className="space-y-3 pt-4 border-t border-border">
               <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Configuration</h3>
+              <label className="flex items-center justify-between text-sm"><span className="text-text-secondary">Capacity</span><input type="number" min="1" max="100" value={selectedNode.configuration.capacity} onChange={event => updateNode(selectedNode.id, { configuration: { ...selectedNode.configuration, capacity: Number(event.target.value) } })} className="w-16 bg-bg-deep border border-border rounded px-2 py-1" /></label>
               
               <label className="flex items-center justify-between text-sm cursor-pointer group">
                 <span className="text-text-secondary group-hover:text-text-primary transition-colors">High Availability</span>
@@ -203,6 +208,13 @@ export default function InspectorPanel() {
                   />
                 </label>
               )}
+              {[
+                ["Public exposure", "publiclyAccessible"], ["Monitoring enabled", "monitoringEnabled"], ["Credential protection", "credentialProtected"], ["Health checks", "healthChecksEnabled"], ["Automatic rollback", "rollbackEnabled"],
+                ...(selectedNode.type === "database" ? [["Automatic failover", "failoverEnabled"]] : [])
+              ].map(([label, key]) => <label key={key} className="flex items-center justify-between text-sm cursor-pointer"><span className="text-text-secondary">{label}</span><input type="checkbox" checked={Boolean(selectedNode.configuration[key as keyof typeof selectedNode.configuration])} onChange={event => updateNode(selectedNode.id, { configuration: { ...selectedNode.configuration, [key]: event.target.checked } })} className="w-4 h-4" /></label>)}
+              {selectedNode.type === "web-app" && <label className="flex items-center justify-between text-sm"><span className="text-text-secondary">Deployment</span><select value={selectedNode.configuration.deploymentStrategy ?? "all-at-once"} onChange={event => updateNode(selectedNode.id, { configuration: { ...selectedNode.configuration, deploymentStrategy: event.target.value as "all-at-once" | "rolling" | "blue-green" } })} className="bg-bg-deep border border-border rounded px-1"><option value="all-at-once">All at once</option><option value="rolling">Rolling</option><option value="blue-green">Blue/green</option></select></label>}
+              <label className="flex items-center justify-between text-sm"><span className="text-text-secondary">Recovery minutes</span><input type="number" min="0" value={selectedNode.configuration.recoveryTimeMinutes} onChange={event => updateNode(selectedNode.id, { configuration: { ...selectedNode.configuration, recoveryTimeMinutes: Number(event.target.value) } })} className="w-16 bg-bg-deep border border-border rounded px-2 py-1" /></label>
+              <button onClick={() => deleteNode(selectedNode.id)} className="w-full mt-3 py-2 text-sm text-app-red border border-app-red/40 rounded flex justify-center gap-2"><Trash2 className="w-4 h-4" /> Delete component</button>
             </div>
           </div>
         </div>

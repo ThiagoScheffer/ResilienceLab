@@ -4,6 +4,23 @@ export type DependencyType = "synchronous" | "asynchronous" | "replication" | "m
 export type FailureType = "instance-failure" | "database-outage" | "traffic-spike" | "zone-outage" | "credential-compromise" | "deployment-regression";
 export type Pillar = "operational-excellence" | "security" | "reliability" | "performance" | "cost" | "sustainability";
 
+export interface NodeConfiguration {
+  capacity: number;
+  redundant: boolean;
+  autoscaling: boolean;
+  encrypted: boolean;
+  publiclyAccessible: boolean;
+  backupsEnabled: boolean;
+  monitoringEnabled: boolean;
+  credentialProtected?: boolean;
+  healthChecksEnabled?: boolean;
+  failoverEnabled?: boolean;
+  deploymentStrategy?: "all-at-once" | "rolling" | "blue-green";
+  rollbackEnabled?: boolean;
+  recoveryTimeMinutes: number;
+  monthlyCostUnits: number;
+}
+
 export interface ArchitectureNode {
   id: string;
   type: ComponentType;
@@ -11,17 +28,7 @@ export interface ArchitectureNode {
   zoneId: string; // "az-a" | "az-b" | "global"
   position: { x: number; y: number };
   status: NodeStatus;
-  configuration: {
-    capacity: number; // 1-10
-    redundant: boolean;
-    autoscaling: boolean;
-    encrypted: boolean;
-    publiclyAccessible: boolean;
-    backupsEnabled: boolean;
-    monitoringEnabled: boolean;
-    recoveryTimeMinutes: number;
-    monthlyCostUnits: number;
-  };
+  configuration: NodeConfiguration;
 }
 
 export interface ArchitectureEdge {
@@ -45,4 +52,6 @@ export interface Architecture {
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
   zones: AvailabilityZone[];
+  createdAt?: string;
+  updatedAt?: string;
 }

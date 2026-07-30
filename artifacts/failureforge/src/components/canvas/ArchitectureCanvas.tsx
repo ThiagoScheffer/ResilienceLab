@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -37,7 +37,9 @@ const edgeTypes = {
 
 export default function ArchitectureCanvas() {
   const store = useArchitectureStore();
-  const { architecture, selectNode, addNode, moveNode } = store;
+  const { architecture, selectNode, addNode, moveNode, updateEdge, deleteEdge } = store;
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const selectedEdge = architecture.edges.find(edge => edge.id === selectedEdgeId);
 
   const nodes: Node[] = useMemo(() => {
     const regularNodes: Node[] = architecture.nodes.map(n => ({
@@ -147,6 +149,7 @@ export default function ArchitectureCanvas() {
         onNodesChange={onNodesChange}
         onConnect={onConnect}
         onPaneClick={onPaneClick}
+        onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
         onInit={(instance) => instance.fitView({ padding: 0.2 })}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -156,13 +159,21 @@ export default function ArchitectureCanvas() {
         <Controls className="bg-bg-panel border-border fill-white" />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="transparent" />
       </ReactFlow>
+      {selectedEdge && <div className="absolute right-3 top-3 z-20 bg-bg-panel border border-border rounded-lg p-3 shadow-lg text-xs space-y-2">
+        <div className="font-semibold text-text-primary">Dependency</div>
+        <select value={selectedEdge.type} onChange={event => updateEdge(selectedEdge.id, { type: event.target.value as typeof selectedEdge.type })} className="bg-bg-deep border border-border rounded px-2 py-1 text-text-primary">
+          <option value="synchronous">Synchronous</option><option value="asynchronous">Asynchronous</option><option value="replication">Replication</option><option value="monitoring">Monitoring</option><option value="backup">Backup</option>
+        </select>
+        <label className="flex items-center gap-2 text-text-secondary"><input type="checkbox" checked={selectedEdge.required} onChange={event => updateEdge(selectedEdge.id, { required: event.target.checked })} /> Required</label>
+        <button onClick={() => { deleteEdge(selectedEdge.id); setSelectedEdgeId(null); }} className="text-app-red">Delete connection</button>
+      </div>}
       
-      <style dangerouslySetContents={{__html: `
+      <style>{`
         @keyframes dashdraw {
           from { stroke-dashoffset: 10; }
           to { stroke-dashoffset: 0; }
         }
-      `}} />
+      `}</style>
     </div>
   );
 }

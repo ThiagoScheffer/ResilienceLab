@@ -48,7 +48,7 @@ export default function CustomNode({ data, selected }: any) {
     <motion.div 
       animate={isFailed ? { x: [-2, 2, -2, 2, 0] } : {}}
       transition={{ duration: 0.4 }}
-      className={cn(
+      draggable onDragStart={(event) => event.dataTransfer.setData('application/failureforge-node', data.id)} className={cn(
         "relative flex items-center gap-3 p-3 rounded-lg border-2 bg-bg-elevated shadow-lg min-w-[200px] transition-all",
         selected ? "border-app-blue shadow-[0_0_15px_rgba(47,128,255,0.2)]" : "border-border",
         isFailed && "border-app-red shadow-[0_0_15px_rgba(240,93,94,0.3)]",

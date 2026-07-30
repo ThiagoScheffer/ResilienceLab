@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function Navigation() {
   const [location, setLocation] = useLocation();
-  const { architecture, saveToLocalStorage } = useArchitectureStore();
+  const { architecture, saveToLocalStorage, setScenario } = useArchitectureStore();
   const { toast } = useToast();
 
   const handleSave = () => {
@@ -44,7 +44,7 @@ export default function Navigation() {
             Save
           </button>
           
-          <button className="bg-gradient-to-r from-app-blue to-app-cyan hover:opacity-90 text-white px-4 py-1.5 rounded-md text-sm font-semibold flex items-center gap-2 shadow-[0_0_15px_rgba(47,128,255,0.3)] transition-all">
+          <button onClick={() => { setScenario({ id: "fs-1", type: "instance-failure", name: "Application Instance Failure", description: "Simulates a complete crash of a primary compute instance.", targetNodeIds: [], severity: "high" }); document.getElementById("simulation-panel")?.scrollIntoView({ behavior: "smooth", block: "end" }); }} className="bg-gradient-to-r from-app-blue to-app-cyan hover:opacity-90 text-white px-4 py-1.5 rounded-md text-sm font-semibold flex items-center gap-2 shadow-[0_0_15px_rgba(47,128,255,0.3)] transition-all">
             <Zap className="w-4 h-4 fill-current" />
             Simulate Failure
           </button>

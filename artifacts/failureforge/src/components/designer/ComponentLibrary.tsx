@@ -1,6 +1,7 @@
-import React, { DragEvent } from 'react';
+import React, { DragEvent, useState } from 'react';
 import { Globe, GitMerge, Database, Zap, HardDrive, Layers, Shield, Activity, Users, Search, Trash2 } from 'lucide-react';
 import { ComponentType } from '../../types/architecture';
+import { useArchitectureStore } from '../../store/architectureStore';
 
 const components: { type: ComponentType; name: string; category: string; icon: React.ElementType }[] = [
   { type: "users", name: "Users", category: "Entry", icon: Users },
@@ -15,6 +16,8 @@ const components: { type: ComponentType; name: string; category: string; icon: R
 ];
 
 export default function ComponentLibrary() {
+  const [query, setQuery] = useState('');
+  const { deleteNode, addZone } = useArchitectureStore();
   const onDragStart = (event: DragEvent, nodeType: ComponentType) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
@@ -31,7 +34,7 @@ export default function ComponentLibrary() {
           <input 
             type="text" 
             placeholder="Search components..." 
-            className="w-full bg-bg-deep border border-border rounded-md pl-9 pr-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-app-blue transition-colors"
+            value={query} onChange={event => setQuery(event.target.value)} className="w-full bg-bg-deep border border-border rounded-md pl-9 pr-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-app-blue transition-colors"
           />
         </div>
       </div>
@@ -41,7 +44,7 @@ export default function ComponentLibrary() {
           <div key={category}>
             <h3 className="text-xs font-medium text-text-secondary mb-2">{category}</h3>
             <div className="space-y-2">
-              {components.filter(c => c.category === category).map((comp) => {
+              {components.filter(c => c.category === category && c.name.toLowerCase().includes(query.toLowerCase())).map((comp) => {
                 const Icon = comp.icon;
                 return (
                   <div
@@ -67,7 +70,8 @@ export default function ComponentLibrary() {
       </div>
       
       <div className="p-4 border-t border-border mt-auto">
-        <div className="h-20 rounded-md border-2 border-dashed border-border/50 flex flex-col items-center justify-center text-text-secondary hover:border-app-red/50 hover:text-app-red transition-colors bg-bg-deep/50">
+        <button onClick={addZone} className="w-full mb-3 py-2 rounded border border-app-blue/40 text-app-blue text-xs font-semibold">Add availability zone</button>
+        <div onDragOver={event => event.preventDefault()} onDrop={event => { const id = event.dataTransfer.getData('application/failureforge-node'); if (id) deleteNode(id); }} className="h-20 rounded-md border-2 border-dashed border-border/50 flex flex-col items-center justify-center text-text-secondary hover:border-app-red/50 hover:text-app-red transition-colors bg-bg-deep/50">
           <Trash2 className="w-5 h-5 mb-1" />
           <span className="text-xs">Drop here to delete</span>
         </div>
