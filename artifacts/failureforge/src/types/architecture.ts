@@ -15,6 +15,7 @@ export interface NodeConfiguration {
   credentialProtected?: boolean;
   healthChecksEnabled?: boolean;
   failoverEnabled?: boolean;
+  failoverEndpointEnabled?: boolean;
   deploymentStrategy?: "all-at-once" | "rolling" | "blue-green";
   rollbackEnabled?: boolean;
   recoveryTimeMinutes: number;

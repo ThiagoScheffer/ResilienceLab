@@ -215,6 +215,7 @@ export default function SimulationPanel() {
           </div>
 
           <div className="p-6 space-y-6">
+            {simulationResult.customerAvailability < 25 && <div className="rounded-lg border border-app-red bg-app-red/15 px-4 py-3 text-app-red"><span className="font-bold uppercase tracking-wide">Critical customer-path outage</span><p className="text-sm mt-1">No healthy route from users to a writable application dependency remains.</p></div>}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="rounded-lg border border-border bg-bg-deep p-4">
                 <div className="text-xs text-text-secondary uppercase">Customer availability</div>
@@ -308,6 +309,7 @@ export default function SimulationPanel() {
             <button onClick={resetSimulation} className="w-full py-2.5 rounded-md bg-bg-elevated border border-border text-text-primary font-semibold hover:bg-border flex items-center justify-center gap-2">
               <RotateCcw className="w-4 h-4" /> Reset architecture
             </button>
+            <p className="text-center text-[10px] text-text-secondary">Simulation engine {simulationResult.engineVersion}</p>
           </div>
         </div>
       </div>

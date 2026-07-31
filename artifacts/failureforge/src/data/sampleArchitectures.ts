@@ -63,11 +63,11 @@ export const sampleResilientEcommerce: Architecture = {
     },
     {
       id: "node-app-a", type: "web-app", name: "Web App A", zoneId: "az-a", position: { x: 500, y: 200 }, status: "healthy",
-      configuration: { capacity: 8, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 10, monthlyCostUnits: 60 }
+      configuration: { capacity: 8, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, failoverEndpointEnabled: true, recoveryTimeMinutes: 10, monthlyCostUnits: 60 }
     },
     {
       id: "node-app-b", type: "web-app", name: "Web App B", zoneId: "az-b", position: { x: 500, y: 400 }, status: "healthy",
-      configuration: { capacity: 8, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 10, monthlyCostUnits: 60 }
+      configuration: { capacity: 8, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, failoverEndpointEnabled: true, recoveryTimeMinutes: 10, monthlyCostUnits: 60 }
     },
     {
       id: "node-cache", type: "cache", name: "Redis Cache", zoneId: "az-a", position: { x: 750, y: 200 }, status: "healthy",
@@ -79,7 +79,7 @@ export const sampleResilientEcommerce: Architecture = {
     },
     {
       id: "node-db-primary", type: "database", name: "Primary DB", zoneId: "az-a", position: { x: 1000, y: 250 }, status: "healthy",
-      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: true, monitoringEnabled: true, recoveryTimeMinutes: 30, monthlyCostUnits: 150 }
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: true, monitoringEnabled: true, failoverEnabled: true, recoveryTimeMinutes: 30, monthlyCostUnits: 150 }
     },
     {
       id: "node-db-replica", type: "database", name: "Standby Replica", zoneId: "az-b", position: { x: 1000, y: 400 }, status: "healthy",

@@ -5,6 +5,7 @@ import { generateRecommendations } from "./recommendationEngine";
 
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 const riskOrder = ["none", "low", "medium", "high", "critical"] as const;
+export const SIMULATION_ENGINE_VERSION = "2026.08.db-failover-v2";
 
 export const runSimulation = (architecture: Architecture, scenario: FailureScenario): SimulationResult => {
   const nodes: ArchitectureNode[] = architecture.nodes.map(node => ({ ...node, configuration: { ...node.configuration }, status: "healthy" }));
@@ -25,7 +26,12 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
     const candidate = byId.get(edge.target);
     return candidate?.id !== dependency.id && candidate?.type === dependency.type && candidate.status !== "failed";
   });
-  const hasReachableReplica = (database: ArchitectureNode) => databases().some(replica => replica.id !== database.id && replica.status !== "failed" && architecture.edges.some(edge => edge.source === database.id && edge.target === replica.id && edge.type === "replication"));
+  const promotedDatabases = new Set<string>();
+  const canFailOver = (dependant: ArchitectureNode, database: ArchitectureNode) => {
+    const replica = databases().find(candidate => candidate.id !== database.id && candidate.zoneId !== database.zoneId && candidate.status !== "failed" && architecture.edges.some(edge => edge.source === database.id && edge.target === candidate.id && edge.type === "replication"));
+    return Boolean(replica && database.configuration.failoverEnabled && dependant.configuration.failoverEndpointEnabled);
+  };
+  const hasReachableReplica = (database: ArchitectureNode) => databases().some(replica => replica.id !== database.id && replica.zoneId !== database.zoneId && replica.status !== "failed" && database.configuration.failoverEnabled && architecture.edges.some(edge => edge.source === database.id && edge.target === replica.id && edge.type === "replication"));
 
   if (scenario.type === "zone-outage") {
     const zoneId = scenario.parameters?.targetZoneId ?? byId.get(scenario.targetNodeIds[0])?.zoneId;
@@ -52,6 +58,8 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
       const protectedRelease = Boolean(node.configuration.healthChecksEnabled && node.configuration.rollbackEnabled && node.configuration.deploymentStrategy !== "all-at-once");
       change(id, protectedRelease ? "degraded" : "failed", protectedRelease ? `${node.name} rolled back after failing health checks.` : `${node.name} failed after an unhealthy release.`);
     });
+  } else if (scenario.type === "database-outage") {
+    scenario.targetNodeIds.forEach(id => { const node = byId.get(id); if (node) change(id, "failed", `${node.name} failed; evaluating standby promotion.`); });
   } else {
     scenario.targetNodeIds.forEach(id => { const node = byId.get(id); if (node) change(id, "failed", `${node.name} became unavailable.`); });
   }
@@ -70,9 +78,15 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
         if (healthyEquivalent(dependant, dependency)) {
           log(dependant, `${dependant.name} rerouted around the failed ${dependency.name}.`); return false;
         }
-        if (dependency.type === "database" && hasReachableReplica(dependency) && (dependency.configuration.failoverEnabled ?? dependency.configuration.redundant)) {
-          log(dependant, `${dependant.name} failed over to a reachable database replica.`); return false;
+        if (dependency.type === "database" && canFailOver(dependant, dependency)) {
+          if (!promotedDatabases.has(dependency.id)) {
+            promotedDatabases.add(dependency.id);
+            const replica = databases().find(candidate => candidate.id !== dependency.id && candidate.zoneId !== dependency.zoneId && candidate.status !== "failed")!;
+            log(replica, `${replica.name} promoted to writable primary.`);
+          }
+          log(dependant, `${dependant.name} switched to the failover database endpoint; writes continue.`); return false;
         }
+        if (dependency.type === "database") log(dependency, `No reachable writable replica is available for ${dependant.name}.`);
         return true;
       });
       if (unrecoverable.length) changed ||= change(dependant.id, "failed", `${dependant.name} lost a required dependency.`);
@@ -130,9 +144,9 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
   const rootCauses: Record<FailureScenario["type"], string> = { "instance-failure": "An application compute instance became unavailable.", "database-outage": "The primary database stopped accepting connections.", "traffic-spike": "Incoming demand exceeded configured application capacity.", "zone-outage": "An availability zone became unavailable.", "credential-compromise": "Application credentials were exposed and required containment.", "deployment-regression": "A release introduced unhealthy application behavior." };
   const result: SimulationResult = {
     scenario, events, affectedNodes: [...affected], affectedComponents, failedComponents, degradedComponents, exposedComponents, impactSeverity,
-    customerImpact: customerAvailability === 0 ? "Complete customer outage." : customerAvailability < 100 ? `${100 - customerAvailability}% of customer demand is unserved.` : "Customer demand remains fully served.",
+    customerImpact: customerAvailability === 0 ? "No healthy customer request path remains." : customerAvailability < 100 ? `${100 - customerAvailability}% of customer demand is unserved.` : promotedDatabases.size ? "Database failover succeeded; customer demand remains fully served." : "Customer demand remains fully served.",
     rootCause: rootCauses[scenario.type], customerAvailability, estimatedRecoveryMinutes: recovery, dataLossRisk,
-    pillarScoresBefore: architecturePosture, pillarScoresAfter: livePillars, architecturePosture,
+    engineVersion: SIMULATION_ENGINE_VERSION, pillarScoresBefore: architecturePosture, pillarScoresAfter: livePillars, architecturePosture,
     liveIncident: { demandCapacity, healthyCapacity, degradedCapacity, capacityHeadroomPercent: headroom, latencyBand, failedRequestPaths, protectedComponents, estimatedBusinessImpactUnits, pillarScores: livePillars, pillarExplanations: explanations },
     scoreExplanations: explanations, costBefore, costAfter: costBefore, costDelta: 0, recommendations: []
   };

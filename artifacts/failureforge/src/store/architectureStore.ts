@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { Architecture, ArchitectureNode, ArchitectureEdge, ComponentType, NodeConfiguration } from '../types/architecture';
 import { FailureScenario, RecommendationAction, SimulationEvent, SimulationResult, ValidationIssue } from '../types/simulation';
 import { sampleResilientEcommerce, sampleArchitectures } from '../data/sampleArchitectures';
-import { runSimulation } from '../engine/simulationEngine';
+import { runSimulation, SIMULATION_ENGINE_VERSION } from '../engine/simulationEngine';
 import { hasBlockingValidationIssues, validateArchitecture } from '../engine/validationEngine';
 
 interface ArchitectureState {
@@ -39,7 +39,7 @@ interface ArchitectureState {
 
 const STORAGE_KEY = 'failureforge_architecture';
 let simulationTimer: ReturnType<typeof setInterval> | null = null;
-const defaults: Pick<NodeConfiguration, "credentialProtected" | "healthChecksEnabled" | "failoverEnabled" | "deploymentStrategy" | "rollbackEnabled"> = { credentialProtected: false, healthChecksEnabled: false, failoverEnabled: false, deploymentStrategy: "all-at-once", rollbackEnabled: false };
+const defaults: Pick<NodeConfiguration, "credentialProtected" | "healthChecksEnabled" | "failoverEnabled" | "failoverEndpointEnabled" | "deploymentStrategy" | "rollbackEnabled"> = { credentialProtected: false, healthChecksEnabled: false, failoverEnabled: false, failoverEndpointEnabled: false, deploymentStrategy: "all-at-once", rollbackEnabled: false };
 const touch = (architecture: Architecture): Architecture => ({ ...architecture, updatedAt: new Date().toISOString() });
 const normalizeArchitecture = (raw: Architecture): Architecture => ({ ...raw, createdAt: raw.createdAt ?? new Date().toISOString(), updatedAt: raw.updatedAt ?? new Date().toISOString(), nodes: raw.nodes.map(node => ({ ...node, status: node.status ?? "healthy", configuration: { ...defaults, ...node.configuration } })) });
 
@@ -72,8 +72,10 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const parsed = normalizeArchitecture(JSON.parse(stored));
-        set({ architecture: parsed, validationIssues: validateArchitecture(parsed) });
+        const saved = JSON.parse(stored) as { version?: string; architecture?: Architecture } | Architecture;
+        const parsed = normalizeArchitecture("architecture" in saved && saved.architecture ? saved.architecture : saved as Architecture);
+        // Simulation result/timeline is never persisted, so a new engine version cannot display stale incident scores.
+        set({ architecture: parsed, validationIssues: validateArchitecture(parsed), simulationState: "idle", simulationResult: null, activeEvents: [], comparisonResult: null });
       } catch (e) {
         console.error("Failed to parse architecture from local storage", e);
       }
@@ -82,7 +84,7 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
 
   saveToLocalStorage: () => {
     const { architecture } = get();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(architecture));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SIMULATION_ENGINE_VERSION, architecture }));
   },
 
   selectNode: (id) => set({ selectedNodeId: id }),

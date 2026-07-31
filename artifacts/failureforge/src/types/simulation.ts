@@ -74,6 +74,7 @@ export interface LiveIncidentImpact {
 }
 
 export interface SimulationResult {
+  engineVersion: string;
   scenario: FailureScenario;
   events: SimulationEvent[];
   affectedNodes: string[];

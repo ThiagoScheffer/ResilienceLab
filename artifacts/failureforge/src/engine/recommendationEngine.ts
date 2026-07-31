@@ -19,6 +19,19 @@ export const generateRecommendations = (
   const hasCache = nodes.some(n => n.type === "cache");
   const zonesUsed = new Set(nodes.filter(n => n.type !== "users").map(n => n.zoneId));
 
+  if (result.scenario.type === "database-outage" && databases.length > 0 && (!databases[0].configuration.failoverEnabled || !webApps.some(app => app.configuration.failoverEndpointEnabled))) {
+    recommendations.push({
+      id: "rec-enable-db-failover-endpoint",
+      title: "Enable application database failover",
+      description: "Configure primary promotion and a shared database endpoint before relying on a standby replica.",
+      priority: "critical",
+      affectedPillars: ["reliability", "operational-excellence"],
+      estimatedScoreImpact: { reliability: 14, "operational-excellence": 8 },
+      estimatedOutageLossReduction: Math.round(result.liveIncident.estimatedBusinessImpactUnits * .6),
+      action: { type: "update-config", nodeId: "all", changes: { failoverEnabled: true, failoverEndpointEnabled: true, monitoringEnabled: true } }
+    });
+  }
+
   if (result.scenario.type === "zone-outage") {
     const failedApps = result.failedComponents.filter(component => nodes.find(node => node.id === component.id)?.type === "web-app");
     if (failedApps.length) recommendations.push({

@@ -24,7 +24,7 @@ export default function GuidedDemo() {
   useEffect(() => {
     if (!isVisible) return;
 
-    if (step === 1 && activeScenario?.id === "fs-1") {
+    if (step === 1 && activeScenario?.id === "fs-2") {
       setStep(2);
     } else if (step === 2 && simulationState === "complete") {
       setStep(3);
@@ -38,22 +38,23 @@ export default function GuidedDemo() {
 
   const autoSelectScenario = () => {
     setScenario({
-      id: "fs-1",
-      type: "instance-failure",
-      name: "Application Instance Failure",
-      description: "Simulates a complete crash of a primary compute instance.",
-      targetNodeIds: ["node-webapp-1"],
-      severity: "high"
+      id: "fs-2",
+      type: "database-outage",
+      name: "Primary Database Outage",
+      description: "Simulates a complete loss of the primary database.",
+      targetNodeIds: ["node-db-1"],
+      severity: "critical"
     });
   };
 
   const autoApplyFixes = () => {
-    applyRecommendation({ type: "apply-architecture", name: "guided-resilience", zones: [{ id: "az-b", name: "AZ-B", color: "#121F30" }], nodes: [
-      { id: "demo-lb", type: "load-balancer", name: "Load Balancer", zoneId: "global", position: { x: 240, y: 220 }, configuration: { capacity: 10, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: true, backupsEnabled: false, monitoringEnabled: true, healthChecksEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 25 } },
-      { id: "demo-app-b", type: "web-app", name: "Web App B", zoneId: "az-b", position: { x: 480, y: 340 }, configuration: { capacity: 5, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, healthChecksEnabled: true, rollbackEnabled: true, deploymentStrategy: "rolling", recoveryTimeMinutes: 10, monthlyCostUnits: 50 } },
+    applyRecommendation({ type: "update-config", nodeId: "node-webapp-1", changes: { failoverEndpointEnabled: true, monitoringEnabled: true } });
+    applyRecommendation({ type: "update-config", nodeId: "node-db-1", changes: { failoverEnabled: true, monitoringEnabled: true } });
+    applyRecommendation({ type: "apply-architecture", name: "guided-db-failover", zones: [{ id: "az-b", name: "AZ-B", color: "#121F30" }], nodes: [
+      { id: "demo-db-replica", type: "database", name: "Cross-Zone Standby", zoneId: "az-b", position: { x: 820, y: 300 }, configuration: { capacity: 5, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: true, monitoringEnabled: true, failoverEnabled: true, recoveryTimeMinutes: 15, monthlyCostUnits: 90 } },
       { id: "demo-monitoring", type: "monitoring", name: "Monitoring", zoneId: "global", position: { x: 300, y: 80 }, configuration: { capacity: 1, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 15 } }
     ], edges: [
-      { source: "node-users", target: "demo-lb", type: "synchronous", required: true }, { source: "demo-lb", target: "node-webapp-1", type: "synchronous", required: true }, { source: "demo-lb", target: "demo-app-b", type: "synchronous", required: true }, { source: "demo-app-b", target: "node-db-1", type: "synchronous", required: true }, { source: "demo-app-b", target: "demo-monitoring", type: "monitoring", required: false }
+      { source: "node-db-1", target: "demo-db-replica", type: "replication", required: false }, { source: "node-db-1", target: "demo-monitoring", type: "monitoring", required: false }
     ] });
   };
 
@@ -77,7 +78,7 @@ export default function GuidedDemo() {
         <div className="p-5 space-y-4 text-sm">
           {step === 1 && (
             <>
-              <p>This architecture has critical vulnerabilities — Health: 41/100. Let's simulate a failure.</p>
+              <p>This architecture has a critical database single point of failure. Let's simulate an outage.</p>
               <button onClick={autoSelectScenario} className="w-full bg-app-blue hover:bg-opacity-90 text-white font-bold py-2 rounded">
                 Select Scenario
               </button>
@@ -85,13 +86,13 @@ export default function GuidedDemo() {
           )}
           {step === 2 && (
             <>
-              <p>Scenario selected. Click the <strong>Run Simulation</strong> button in the bottom panel to see what happens when the instance fails.</p>
+              <p>Scenario selected. Click <strong>Run Simulation</strong> to see what happens when the primary database fails.</p>
             </>
           )}
           {step === 3 && (
             <>
               <p className="text-app-red font-bold">Complete outage!</p>
-              <p>The single point of failure caused the entire system to go down. Let's improve this architecture.</p>
+              <p>No writable database path remains. Let's add cross-zone failover and monitoring.</p>
               <button onClick={autoApplyFixes} className="w-full bg-app-cyan hover:bg-opacity-90 text-bg-deep font-bold py-2 rounded">
                 Apply Recommended Fixes
               </button>
@@ -99,7 +100,7 @@ export default function GuidedDemo() {
           )}
           {step === 4 && (
             <>
-              <p>We've added a Load Balancer and a second Application Instance in another AZ.</p>
+              <p>We've added a cross-zone standby, failover endpoint, and monitoring.</p>
               <p>Run the <strong>same scenario</strong> again to see the difference.</p>
             </>
           )}
@@ -107,9 +108,9 @@ export default function GuidedDemo() {
             <>
               <div className="flex items-center gap-2 text-app-green font-bold mb-2">
                 <CheckCircle className="w-5 h-5" />
-                100% Availability!
+                Database failover successful!
               </div>
-              <p>The system gracefully handled the instance failure without downtime. Check out how your pillar scores changed in the Inspector.</p>
+              <p>The standby promoted and the application switched its database endpoint without customer downtime.</p>
               <button onClick={() => setIsVisible(false)} className="w-full bg-bg-panel border border-border hover:bg-border text-white font-bold py-2 rounded mt-2">
                 End Tour
               </button>

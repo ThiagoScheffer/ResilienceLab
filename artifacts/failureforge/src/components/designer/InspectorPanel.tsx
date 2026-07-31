@@ -101,6 +101,7 @@ export default function InspectorPanel() {
                 </div>
               );
             })}
+            {simulationResult && <div className="pt-3 border-t border-border"><h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Architecture Posture</h3><p className="text-xs text-text-secondary mt-1">Durable design controls, unchanged by this incident.</p><div className="grid grid-cols-3 gap-2 mt-2">{(Object.keys(pillarLabels) as Pillar[]).map(pillar => <div key={pillar} className="rounded bg-bg-deep p-2 text-center"><div className="text-[10px] text-text-secondary truncate">{pillarLabels[pillar]}</div><div className="font-bold text-sm">{simulationResult.architecturePosture[pillar]}</div></div>)}</div></div>}
           </div>
 
           {simulationResult && simulationResult.recommendations.length > 0 && (
