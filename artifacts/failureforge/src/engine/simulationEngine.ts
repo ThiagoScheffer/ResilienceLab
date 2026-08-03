@@ -1,6 +1,6 @@
 import { Architecture, ArchitectureNode, Pillar } from "../types/architecture";
 import { FailureScenario, ScoreExplanation, SimulationComponentImpact, SimulationEvent, SimulationResult } from "../types/simulation";
-import { calculateScores } from "./scoringEngine";
+import { calculateArchitecturePosture, calculateLiveIncidentScores } from "./scoringEngine";
 import { generateRecommendations } from "./recommendationEngine";
 
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
@@ -121,6 +121,8 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
   const degradedCapacity = reachableApps.filter(node => node.status === "degraded").reduce((total, node) => total + node.configuration.capacity * .5, 0);
   const servedCapacity = healthyCapacity + degradedCapacity;
   const customerAvailability = clamp(servedCapacity / demandCapacity * 100);
+  const healthyCustomerPathCount = reachableApps.filter(node => node.status === "healthy").length;
+  if (customerAvailability === 0 && users[0]) log(users[0], "No healthy customer request path.");
   const headroom = Math.round(servedCapacity / demandCapacity * 100 - 100);
   const latencyBand = customerAvailability === 0 ? "unavailable" : customerAvailability < 70 ? "severe" : customerAvailability < 100 || degradedCapacity > 0 ? "elevated" : "normal";
   const failed = nodes.filter(node => node.status === "failed"); const degraded = nodes.filter(node => node.status === "degraded");
@@ -132,24 +134,31 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
   const recovery = Math.max(0, ...affectedComponents.map(component => byId.get(component.id)?.configuration.recoveryTimeMinutes ?? 0));
   const failedDatabases = failed.filter(node => node.type === "database");
   const dataLossRisk = scenario.type === "credential-compromise" ? (exposedComponents.some(component => byId.get(component.id)?.type === "database") ? "high" : "medium") : failedDatabases.length ? (failedDatabases.some(database => !hasReachableReplica(database)) ? "critical" : "low") : "none";
-  const architecturePosture = calculateScores(architecture);
-  const securityPenalty = scenario.type === "credential-compromise" ? exposedComponents.length * 12 : 0;
-  const livePillars: Record<Pillar, number> = {
-    reliability: customerAvailability,
-    performance: customerAvailability === 0 ? 0 : latencyBand === "severe" ? 35 : latencyBand === "elevated" ? 65 : 100,
-    "operational-excellence": clamp((architecture.nodes.some(node => node.type === "monitoring") ? 70 : 35) + (events.some(event => event.message.includes("rerouted") || event.message.includes("failed over") || event.message.includes("rolled back")) ? 20 : 0) - Math.min(45, recovery / 3)),
-    security: clamp(architecturePosture.security - securityPenalty),
-    cost: architecturePosture.cost,
-    sustainability: architecturePosture.sustainability
-  };
-  const explanations: ScoreExplanation[] = [
-    { pillar: "reliability", delta: livePillars.reliability - architecturePosture.reliability, reason: `${customerAvailability}% of customer demand remains served.` },
-    { pillar: "performance", delta: livePillars.performance - architecturePosture.performance, reason: `Latency is ${latencyBand}; capacity headroom is ${headroom}%.` },
-    { pillar: "operational-excellence", delta: livePillars["operational-excellence"] - architecturePosture["operational-excellence"], reason: recovery ? `${recovery} minutes estimated recovery and ${events.length} observed events.` : "No recovery action is required." },
-    { pillar: "security", delta: livePillars.security - architecturePosture.security, reason: securityPenalty ? "Credential exposure reduced live security confidence." : "Security controls are unaffected by this availability incident." },
-    { pillar: "cost", delta: 0, reason: "Monthly architecture cost is unchanged during an incident." },
-    { pillar: "sustainability", delta: 0, reason: "Sustainability posture is unchanged during this incident." }
-  ];
+  const architecturePosture = calculateArchitecturePosture(architecture);
+  const writableDatabaseRequired = architecture.edges.some(edge => edge.required && nodes.find(node => node.id === edge.target)?.type === "database");
+  const writableDatabaseAvailable = !writableDatabaseRequired || failedDatabases.length === 0 || promotedDatabases.size > 0;
+  const automatedRecoveryStarted = events.some(event => /promoted|rolled back|rerouted|endpoint updated/i.test(event.message));
+  const failoverOrRollbackSucceeded = events.some(event => /promoted|rolled back|switched to the failover database endpoint/i.test(event.message));
+  const detectionEvent = events.find(event => /detected|monitoring|alert/i.test(event.message));
+  const { scores: livePillars, explanations } = calculateLiveIncidentScores({
+    architecturePosture,
+    customerAvailability,
+    demandCapacity,
+    healthyCapacity,
+    degradedCapacity,
+    healthyCustomerPathCount,
+    writableDatabaseRequired,
+    writableDatabaseAvailable,
+    latencyBand,
+    detectionTimeSeconds: detectionEvent?.time ?? (architecture.nodes.some(node => node.type === "monitoring") ? 3 : null),
+    automatedRecoveryStarted,
+    recoverySucceeded: customerAvailability > 0,
+    failoverOrRollbackSucceeded,
+    recoveryMinutes: recovery,
+    dataLossRisk,
+    exposureCount: exposedComponents.length,
+    isCredentialIncident: scenario.type === "credential-compromise"
+  });
   const costBefore = architecture.nodes.reduce((total, node) => total + node.configuration.monthlyCostUnits, 0);
   const estimatedBusinessImpactUnits = Math.round((100 - customerAvailability) / 100 * demandCapacity * Math.max(1, recovery) * 2);
   const failedRequestPaths = failedComponents.filter(component => ["web-app", "load-balancer", "database"].includes(byId.get(component.id)?.type ?? "")).map(component => component.name);
@@ -160,7 +169,7 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
     customerImpact: customerAvailability === 0 ? "No healthy customer request path remains." : customerAvailability < 100 ? `${100 - customerAvailability}% of customer demand is unserved.` : promotedDatabases.size ? "Database failover succeeded; customer demand remains fully served." : "Customer demand remains fully served.",
     rootCause: rootCauses[scenario.type], customerAvailability, estimatedRecoveryMinutes: recovery, dataLossRisk,
     engineVersion: SIMULATION_ENGINE_VERSION, pillarScoresBefore: architecturePosture, pillarScoresAfter: livePillars, architecturePosture,
-    liveIncident: { demandCapacity, healthyCapacity, degradedCapacity, capacityHeadroomPercent: headroom, latencyBand, failedRequestPaths, protectedComponents, estimatedBusinessImpactUnits, pillarScores: livePillars, pillarExplanations: explanations },
+    liveIncident: { demandCapacity, healthyCapacity, degradedCapacity, demandServedPercent: customerAvailability, healthyCustomerPathCount, capacityHeadroomPercent: headroom, latencyBand, failedRequestPaths, protectedComponents, estimatedBusinessImpactUnits, pillarScores: livePillars, pillarExplanations: explanations },
     scoreExplanations: explanations, costBefore, costAfter: costBefore, costDelta: 0, recommendations: []
   };
   result.recommendations = generateRecommendations(architecture, result);

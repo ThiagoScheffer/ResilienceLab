@@ -64,6 +64,8 @@ export interface LiveIncidentImpact {
   demandCapacity: number;
   healthyCapacity: number;
   degradedCapacity: number;
+  demandServedPercent: number;
+  healthyCustomerPathCount: number;
   capacityHeadroomPercent: number;
   latencyBand: "normal" | "elevated" | "severe" | "unavailable";
   failedRequestPaths: string[];

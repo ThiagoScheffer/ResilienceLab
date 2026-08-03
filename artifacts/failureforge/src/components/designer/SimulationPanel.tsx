@@ -2,6 +2,8 @@ import React from 'react';
 import { Play, RotateCcw, AlertTriangle, Clock, ShieldAlert, X, Activity, Gauge, TrendingDown } from 'lucide-react';
 import { useArchitectureStore } from '../../store/architectureStore';
 import { FailureScenario } from '../../types/simulation';
+import { getIncidentHealthLabel, getLiveIncidentHealth, getScoreSeverity } from '../../engine/scoringEngine';
+import { Pillar } from '../../types/architecture';
 
 const scenarios: FailureScenario[] = [
   {
@@ -279,28 +281,28 @@ export default function SimulationPanel() {
               <p className="text-sm text-text-secondary">{simulationResult.liveIncident.protectedComponents.slice(0, 5).map(component => component.name).join(", ")}{simulationResult.liveIncident.protectedComponents.length > 5 ? "…" : ""}</p>
             </div>}
 
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-1">Architecture posture & live incident</h3>
-              <p className="text-xs text-text-secondary mb-3">Left is durable Well-Architected posture. Right is live health during this incident.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {Object.entries(simulationResult.pillarScoresBefore).map(([pillar, before]) => {
-                  const after = simulationResult.pillarScoresAfter[pillar as keyof typeof simulationResult.pillarScoresAfter];
-                  const delta = after - before;
-                  return (
-                    <div key={pillar} className="rounded-md border border-border bg-bg-deep p-3">
-                      <div className="text-xs capitalize text-text-secondary">{pillar.replace("-", " ")}</div>
-                      <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-sm text-text-secondary" title="Architecture posture">{before}</span>
-                        <span className="text-text-secondary">→</span>
-                        <span className="text-lg font-bold text-text-primary" title="Live incident health">{after}</span>
-                        <span className={`ml-auto text-xs font-bold ${delta < 0 ? "text-app-red" : delta > 0 ? "text-app-green" : "text-text-secondary"}`}>
-                          {delta < 0 ? "▼" : delta > 0 ? "▲" : "—"} {Math.abs(delta)}
-                        </span>
-                      </div>
-                      {simulationResult.scoreExplanations.filter(explanation => explanation.pillar === pillar).map(explanation => <p key={explanation.reason} className="mt-1 text-[10px] text-text-secondary">{explanation.reason}</p>)}
-                    </div>
-                  );
-                })}
+            <div className="rounded-lg border border-border bg-bg-deep p-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary mb-1">Live incident health</h3>
+              <p className="text-xs text-text-secondary mb-3">Incident health excludes Security, Cost, and Sustainability when they are posture-only or unaffected.</p>
+              <div className="flex items-center justify-between rounded-md bg-bg-panel p-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-text-secondary">Weighted live score</div>
+                  <div className="text-sm text-text-secondary">Reliability 60% · Performance 25% · Operational Excellence 15%</div>
+                </div>
+                <div className={`text-right ${getScoreSeverity(getLiveIncidentHealth(simulationResult)).textClass}`}>
+                  <div className="text-3xl font-black">{getLiveIncidentHealth(simulationResult)}</div>
+                  <div className="text-xs font-bold uppercase">{getIncidentHealthLabel(getLiveIncidentHealth(simulationResult), simulationResult.customerAvailability)}</div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(["reliability", "performance", "operational-excellence"] as Pillar[]).map(pillar => (
+                  <ReportScoreCard key={pillar} pillar={pillar} before={simulationResult.architecturePosture[pillar]} after={simulationResult.liveIncident.pillarScores[pillar]} explanation={simulationResult.scoreExplanations.find(item => item.pillar === pillar)?.reason ?? ""} />
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <ReportScoreCard pillar="security" before={simulationResult.architecturePosture.security} after={simulationResult.liveIncident.pillarScores.security} explanation={simulationResult.scoreExplanations.find(item => item.pillar === "security")?.reason ?? ""} unaffected={simulationResult.scenario.type !== "credential-compromise"} />
+                <ReportScoreCard pillar="cost" before={simulationResult.architecturePosture.cost} after={simulationResult.architecturePosture.cost} explanation="Architecture posture value. Incident-loss units are displayed separately." unaffected />
+                <ReportScoreCard pillar="sustainability" before={simulationResult.architecturePosture.sustainability} after={simulationResult.architecturePosture.sustainability} explanation="Architecture posture value unless emergency scaling or recovery waste occurs." unaffected />
               </div>
             </div>
             {comparisonResult && <div className="rounded-lg border border-app-cyan/30 bg-app-cyan/5 p-4"><h3 className="text-sm font-semibold text-app-cyan">Before-and-after comparison</h3><p className="text-sm text-text-secondary mt-1">Availability: {comparisonResult.customerAvailability}% → {simulationResult.customerAvailability}% · Monthly cost: {comparisonResult.costBefore} → {simulationResult.costBefore} units · Incident loss: {comparisonResult.liveIncident.estimatedBusinessImpactUnits} → {simulationResult.liveIncident.estimatedBusinessImpactUnits} units</p><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">{Object.keys(simulationResult.pillarScoresAfter).map(pillar => <div key={pillar} className="text-xs text-text-secondary capitalize">{pillar.replace("-", " ")}: {comparisonResult.pillarScoresAfter[pillar as keyof typeof comparisonResult.pillarScoresAfter]} → {simulationResult.pillarScoresAfter[pillar as keyof typeof simulationResult.pillarScoresAfter]}</div>)}</div></div>}
@@ -359,6 +361,42 @@ function StripMetric({ icon: Icon, label, value, danger }: { icon: React.Element
         {label}
       </div>
       <div className={`mt-0.5 truncate text-sm font-bold capitalize ${danger ? "text-app-red" : "text-text-primary"}`}>{value}</div>
+    </div>
+  );
+}
+
+const reportPillarLabels: Record<Pillar, string> = {
+  reliability: "Reliability",
+  security: "Security",
+  "operational-excellence": "Operational Excellence",
+  performance: "Performance",
+  cost: "Cost Optimization",
+  sustainability: "Sustainability"
+};
+
+function ReportScoreCard({ pillar, before, after, explanation, unaffected = false }: { pillar: Pillar; before: number; after: number; explanation: string; unaffected?: boolean }) {
+  const severity = getScoreSeverity(after);
+  const delta = after - before;
+  const tone = unaffected ? "text-app-cyan" : severity.textClass;
+  const bar = unaffected ? "bg-app-cyan" : severity.barClass;
+
+  return (
+    <div className="rounded-md border border-border bg-bg-panel p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold text-text-secondary">{reportPillarLabels[pillar]}</div>
+          <div className="mt-1 text-xs text-text-secondary">{before}{" -> "}{after}</div>
+        </div>
+        <div className={`text-right ${tone}`}>
+          <div className="text-xl font-black">{after}</div>
+          <div className="text-[10px] font-bold uppercase">{unaffected ? "Unaffected" : severity.label}</div>
+          {delta !== 0 && <div className={`text-[10px] ${delta < 0 ? "text-app-red" : "text-app-green"}`}>{delta > 0 ? "+" : ""}{delta}</div>}
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-deep">
+        <div className={`h-full ${bar}`} style={{ width: `${after}%` }} />
+      </div>
+      <p className="mt-2 text-[10px] leading-relaxed text-text-secondary">{explanation}</p>
     </div>
   );
 }

@@ -82,6 +82,8 @@ This is important because a resilient design can still experience a severe outag
 - [x] Present mode for judge-facing demonstrations
 - [x] Right-panel incident tabs for timeline, reasoning, and fix presentation
 - [x] Narrative Fragile Checkout preset with hidden failover gap
+- [x] Live incident scoring hard caps for 0% availability and missing customer paths
+- [x] Post-simulation pillar panel split into Live Incident Health, Live Incident Impact, Controls Unaffected, and Architecture Posture
 
 ## Changelog
 
@@ -103,6 +105,19 @@ This is important because a resilient design can still experience a severe outag
 - [x] Updated the guided demo to use “The Checkout That Could Not Fail.”
 - [x] Tuned database-outage timeline events to show replica detection, missing failover, missing endpoint, promotion, endpoint update, and application reconnection.
 - [x] Added right-panel simulation tabs for Incident, Timeline, Why, and Fix.
+
+### 2026-08-04: incident-score integrity
+
+- [x] Added `calculateArchitecturePosture` as the explicit structural scoring API while preserving `calculateScores` compatibility.
+- [x] Added `calculateLiveIncidentScores` for live Reliability, Performance, Operational Excellence, Security, Cost, and Sustainability behavior.
+- [x] Added `getLiveIncidentHealth` with availability and customer-path hard caps.
+- [x] Added healthy customer path count and demand served percent to live incident impact data.
+- [x] Ensured 0% availability forces live Reliability, Performance, and Incident Health to 0.
+- [x] Kept Security unchanged and marked conceptually unaffected during pure availability incidents.
+- [x] Added the customer-impact event `No healthy customer request path.` while preserving Users as a healthy traffic source.
+- [x] Redesigned the inspector post-simulation panel to prevent static posture scores from overriding critical live outage status.
+- [x] Split modal pillar reporting into live incident impact and unaffected posture controls.
+- [x] Smoke-tested fragile checkout database outage score integrity outside the browser.
 
 ### 2026-08-03: resilience model hardening
 

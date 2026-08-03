@@ -1,6 +1,6 @@
 import React from 'react';
 import { useArchitectureStore } from '../../store/architectureStore';
-import { calculateScores, getOverallHealth, getHealthLabel } from '../../engine/scoringEngine';
+import { calculateArchitecturePosture, getIncidentHealthLabel, getLiveIncidentHealth, getOverallHealth, getHealthLabel, getScoreSeverity } from '../../engine/scoringEngine';
 import { Pillar } from '../../types/architecture';
 import { Shield, Settings, Activity, Zap, DollarSign, Leaf, Trash2, AlertTriangle } from 'lucide-react';
 
@@ -22,32 +22,24 @@ const pillarLabels: Record<Pillar, string> = {
   "sustainability": "Sustainability"
 };
 
-const pillarColors: Record<Pillar, string> = {
-  "reliability": "bg-app-blue",
-  "security": "bg-app-cyan",
-  "operational-excellence": "bg-app-purple",
-  "performance": "bg-app-amber",
-  "cost": "bg-app-green",
-  "sustainability": "bg-app-green"
-};
-
 export default function InspectorPanel() {
   const { architecture, selectedNodeId, updateNode, deleteNode, simulationResult, applyRecommendation, validationIssues, activeEvents, simulationState, designerMode } = useArchitectureStore();
   const [eventTab, setEventTab] = React.useState<"incident" | "timeline" | "why" | "fix">("incident");
   
   const selectedNode = architecture.nodes.find(n => n.id === selectedNodeId);
-  const scores = calculateScores(architecture);
+  const scores = calculateArchitecturePosture(architecture);
   const overallHealth = getOverallHealth(scores);
   
-  // Use post-simulation scores if available
-  const displayScores = simulationResult ? simulationResult.pillarScoresAfter : scores;
+  const displayScores = scores;
   const displayHealth = getOverallHealth(displayScores);
   const healthColor = displayHealth >= 80 ? "text-app-green" : displayHealth >= 50 ? "text-app-amber" : "text-app-red";
 
   if (simulationState !== "idle" || simulationResult || designerMode === "present") {
     const events = simulationResult?.events ?? activeEvents;
     const topRecommendation = simulationResult?.recommendations[0];
-    const isCritical = (simulationResult?.customerAvailability ?? 0) < 25 || simulationResult?.impactSeverity === "critical";
+    const incidentHealth = simulationResult ? getLiveIncidentHealth(simulationResult) : 0;
+    const incidentLabel = simulationResult ? getIncidentHealthLabel(incidentHealth, simulationResult.customerAvailability) : "Evaluating";
+    const isCritical = incidentLabel === "Critical";
     const whySteps = simulationResult?.scoreExplanations.slice(0, 4).map(explanation => explanation.reason) ?? [
       "The selected failure is being evaluated against required dependencies.",
       "The engine checks reachable alternatives, routing, monitoring, and failover controls.",
@@ -60,8 +52,9 @@ export default function InspectorPanel() {
           <div className="text-xs font-bold uppercase tracking-widest text-app-cyan">The Checkout That Could Not Fail</div>
           <div className={`mt-2 rounded-lg border p-3 ${isCritical ? "border-app-red/50 bg-app-red/10" : "border-app-green/40 bg-app-green/10"}`}>
             <div className={`text-2xl font-black uppercase ${isCritical ? "text-app-red" : "text-app-green"}`}>
-              {isCritical ? "Critical" : simulationResult ? "Contained" : "Evaluating"}
+              {incidentLabel}
             </div>
+            <div className="mt-1 text-xs text-text-secondary">Live Incident Health: {incidentHealth}/100</div>
             <div className="mt-1 text-xs text-text-secondary">{simulationResult?.customerImpact ?? "Running deterministic dependency checks..."}</div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -81,16 +74,63 @@ export default function InspectorPanel() {
         <div className="flex-1 overflow-y-auto p-4">
           {eventTab === "incident" && (
             <div className="space-y-3">
-              <PanelMetric label="Customer path" value={simulationResult?.customerAvailability === 0 ? "No healthy request path" : simulationResult ? "Serving checkout traffic" : "Evaluating path"} tone={isCritical ? "text-app-red" : "text-app-green"} />
-              <PanelMetric label="Root cause" value={simulationResult?.rootCause ?? "Failure propagation in progress"} />
-              <PanelMetric label="Latency" value={simulationResult?.liveIncident.latencyBand ?? "evaluating"} />
-              <PanelMetric label="Incident loss" value={`${simulationResult?.liveIncident.estimatedBusinessImpactUnits ?? 0} units`} />
               <div className="rounded-lg border border-border bg-bg-deep p-3">
-                <div className="text-xs uppercase text-text-secondary">Architecture Posture</div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {(Object.keys(pillarLabels) as Pillar[]).map(pillar => <div key={pillar} className="text-center"><div className="text-[10px] text-text-secondary truncate">{pillarLabels[pillar]}</div><div className="font-bold">{(simulationResult?.architecturePosture ?? scores)[pillar]}</div></div>)}
+                <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">Live Incident Health</div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <PanelMetric label="Customer path" value={simulationResult?.customerAvailability === 0 ? "No healthy request path" : simulationResult ? "Serving checkout traffic" : "Evaluating path"} tone={isCritical ? "text-app-red" : "text-app-green"} />
+                  <PanelMetric label="Healthy paths" value={simulationResult?.liveIncident.healthyCustomerPathCount ?? 0} />
+                  <PanelMetric label="Demand served" value={`${simulationResult?.liveIncident.demandServedPercent ?? 0}%`} />
+                  <PanelMetric label="Recovery" value={simulationResult ? `${simulationResult.estimatedRecoveryMinutes} min` : "calculating"} />
                 </div>
               </div>
+
+              {simulationResult && (
+                <div className="rounded-lg border border-border bg-bg-deep p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">Live Incident Impact</div>
+                  <div className="mt-3 space-y-3">
+                    {(["reliability", "performance", "operational-excellence"] as Pillar[]).map(pillar => (
+                      <ScoreRow
+                        key={pillar}
+                        pillar={pillar}
+                        before={simulationResult.architecturePosture[pillar]}
+                        after={simulationResult.liveIncident.pillarScores[pillar]}
+                        explanation={simulationResult.scoreExplanations.find(item => item.pillar === pillar)?.reason ?? ""}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {simulationResult && (
+                <div className="rounded-lg border border-app-cyan/30 bg-app-cyan/5 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-app-cyan">Controls Unaffected</div>
+                  <ScoreRow
+                    pillar="security"
+                    before={simulationResult.architecturePosture.security}
+                    after={simulationResult.liveIncident.pillarScores.security}
+                    explanation={simulationResult.scoreExplanations.find(item => item.pillar === "security")?.reason ?? ""}
+                    unaffected={simulationResult.scenario.type !== "credential-compromise"}
+                  />
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border bg-bg-deep p-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">Architecture Posture</div>
+                <div className="mt-3 space-y-3">
+                  {(["cost", "sustainability"] as Pillar[]).map(pillar => (
+                    <ScoreRow
+                      key={pillar}
+                      pillar={pillar}
+                      before={(simulationResult?.architecturePosture ?? scores)[pillar]}
+                      after={(simulationResult?.architecturePosture ?? scores)[pillar]}
+                      explanation={simulationResult?.scoreExplanations.find(item => item.pillar === pillar)?.reason ?? "Structural posture score, not part of live incident health."}
+                      unaffected
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <PanelMetric label="Incident loss" value={`${simulationResult?.liveIncident.estimatedBusinessImpactUnits ?? 0} units`} />
             </div>
           )}
 
@@ -165,7 +205,7 @@ export default function InspectorPanel() {
                 <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">{getHealthLabel(displayHealth)}</span>
               </div>
             </div>
-            <h3 className="mt-4 font-semibold">Architecture Health</h3>
+            <h3 className="mt-4 font-semibold">Architecture Posture</h3>
           </div>
 
           <div className="space-y-4">
@@ -178,6 +218,7 @@ export default function InspectorPanel() {
               const Icon = pillarIcons[pillar];
               const score = displayScores[pillar];
               const delta = 0;
+              const severity = getScoreSeverity(score);
 
               return (
                 <div key={pillar} className="space-y-1.5">
@@ -196,7 +237,7 @@ export default function InspectorPanel() {
                     </div>
                   </div>
                   <div className="h-1.5 w-full bg-bg-deep rounded-full overflow-hidden">
-                    <div className={`h-full ${pillarColors[pillar]} transition-all duration-500`} style={{ width: `${score}%` }} />
+                    <div className={`h-full ${severity.barClass} transition-all duration-500`} style={{ width: `${score}%` }} />
                   </div>
                 </div>
               );
@@ -302,6 +343,33 @@ function PanelMetric({ label, value, tone = "text-text-primary" }: { label: stri
     <div className="rounded-md border border-border bg-bg-deep p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{label}</div>
       <div className={`mt-1 text-sm font-bold capitalize ${tone}`}>{value}</div>
+    </div>
+  );
+}
+
+function ScoreRow({ pillar, before, after, explanation, unaffected = false }: { pillar: Pillar; before: number; after: number; explanation: string; unaffected?: boolean }) {
+  const severity = getScoreSeverity(after);
+  const delta = after - before;
+  const tone = unaffected ? "text-app-cyan" : severity.textClass;
+  const barClass = unaffected ? "bg-app-cyan" : severity.barClass;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">{pillarLabels[pillar]}</div>
+          <div className="mt-0.5 text-xs text-text-secondary">{before}{" -> "}{after}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className={`text-lg font-black ${tone}`}>{after}</div>
+          <div className={`text-[10px] font-bold uppercase ${tone}`}>{unaffected ? "Unaffected" : severity.label}</div>
+          {delta !== 0 && <div className={`text-[10px] ${delta < 0 ? "text-app-red" : "text-app-green"}`}>{delta > 0 ? "+" : ""}{delta}</div>}
+        </div>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-panel">
+        <div className={`h-full ${barClass} transition-all duration-500`} style={{ width: `${after}%` }} />
+      </div>
+      {explanation && <p className="text-xs leading-relaxed text-text-secondary">{explanation}</p>}
     </div>
   );
 }
