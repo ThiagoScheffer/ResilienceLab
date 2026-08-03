@@ -1,9 +1,10 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Globe, GitMerge, Database, Zap, HardDrive, Layers, Shield, Activity, Users, AlertTriangle } from 'lucide-react';
-import { ComponentType, NodeStatus } from '../../types/architecture';
+import { Globe, GitMerge, Database, Zap, HardDrive, Layers, Shield, Activity, Users, AlertTriangle, Lock, Radio, Gauge, Route, Server, ArchiveRestore, Eye } from 'lucide-react';
+import { ComponentType } from '../../types/architecture';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { NodeStory, OperationalVisualState } from '../../engine/visualStorytelling';
 
 const iconMap: Record<ComponentType, React.ElementType> = {
   "users": Users,
@@ -17,89 +18,115 @@ const iconMap: Record<ComponentType, React.ElementType> = {
   "monitoring": Activity
 };
 
-const subtitleMap: Record<ComponentType, string> = {
-  "users": "External Traffic",
-  "web-app": "Compute Instance",
-  "load-balancer": "Traffic Routing",
-  "database": "Persistent Store",
-  "cache": "In-Memory Store",
-  "object-storage": "Blob Storage",
-  "queue": "Message Broker",
-  "backup": "Data Archive",
-  "monitoring": "Observability"
-};
-
-const statusColors: Record<NodeStatus, string> = {
-  "healthy": "bg-app-green",
-  "degraded": "bg-app-amber",
-  "failed": "bg-app-red",
-  "recovering": "bg-app-blue"
+const statusStyles: Record<OperationalVisualState, { border: string; glow: string; label: string; text: string; dot: string }> = {
+  healthy: { border: "border-app-green/60", glow: "shadow-[0_0_16px_rgba(67,209,123,0.12)]", label: "Healthy", text: "text-app-green", dot: "bg-app-green" },
+  protected: { border: "border-app-cyan/80", glow: "shadow-[0_0_20px_rgba(41,198,209,0.22)]", label: "Protected", text: "text-app-cyan", dot: "bg-app-cyan" },
+  degraded: { border: "border-app-amber/80", glow: "shadow-[0_0_16px_rgba(247,184,75,0.16)]", label: "Degraded", text: "text-app-amber", dot: "bg-app-amber" },
+  failed: { border: "border-app-red/90", glow: "shadow-[0_0_18px_rgba(240,93,94,0.22)] opacity-90", label: "Failed", text: "text-app-red", dot: "bg-app-red" },
+  recovering: { border: "border-app-blue/80", glow: "shadow-[0_0_18px_rgba(47,128,255,0.2)]", label: "Recovering", text: "text-app-blue", dot: "bg-app-blue" }
 };
 
 export default function CustomNode({ data, selected }: any) {
   const Icon = iconMap[data.type as ComponentType] || Globe;
-  const subtitle = subtitleMap[data.type as ComponentType] || "Component";
-  const status = (data.status || "healthy") as NodeStatus;
-  
-  const isFailed = status === "failed";
-  const isDegraded = status === "degraded";
+  const story = data.story as NodeStory;
+  const visualState = story?.visualState ?? data.status ?? "healthy";
+  const styles = statusStyles[visualState as OperationalVisualState] ?? statusStyles.healthy;
+  const isFailed = visualState === "failed";
+  const isProtected = visualState === "protected";
+  const isSimulation = story?.presentationMode === "simulation";
+  const isComparison = story?.presentationMode === "comparison";
+  const isPresenting = data.designerMode === "present";
 
   return (
     <motion.div 
       animate={isFailed ? { x: [-2, 2, -2, 2, 0] } : {}}
       transition={{ duration: 0.4 }}
-      draggable onDragStart={(event) => event.dataTransfer.setData('application/failureforge-node', data.id)} className={cn(
-        "relative flex items-center gap-3 p-3 rounded-lg border-2 bg-bg-elevated shadow-lg min-w-[200px] transition-all",
-        selected ? "border-app-blue shadow-[0_0_15px_rgba(47,128,255,0.2)]" : "border-border",
-        isFailed && "border-app-red shadow-[0_0_15px_rgba(240,93,94,0.3)]",
-        isDegraded && "border-app-amber"
+      draggable={data.designerMode !== "present"}
+      onDragStart={(event: any) => event.dataTransfer?.setData('application/failureforge-node', data.id)}
+      className={cn(
+        "relative w-[260px] rounded-lg border bg-bg-elevated/95 shadow-lg transition-all overflow-hidden",
+        isPresenting && "w-[298px] text-[1.02rem]",
+        selected ? "border-app-blue shadow-[0_0_18px_rgba(47,128,255,0.24)]" : styles.border,
+        styles.glow
       )}
     >
       <Handle type="target" position={Position.Left} className="w-2 h-2 !bg-border border-none" />
-      
-      <div className="relative">
+
+      {story?.reasonChip && (
         <div className={cn(
-          "w-10 h-10 rounded-md flex items-center justify-center text-white",
-          "bg-bg-deep border border-border"
+          "absolute -top-3 left-3 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide backdrop-blur",
+          isFailed ? "border-app-red bg-app-red/20 text-app-red" : isProtected ? "border-app-cyan bg-app-cyan/20 text-app-cyan" : "border-app-amber bg-app-amber/20 text-app-amber"
         )}>
-          <Icon className="w-5 h-5" />
+          {story.reasonChip}
         </div>
-        
-        {data.configuration?.redundant && (
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-app-blue rounded-full flex items-center justify-center border border-bg-elevated">
-            <Shield className="w-2.5 h-2.5 text-white" />
+      )}
+
+      <div className={cn("h-1.5", styles.dot)} />
+
+      <div className="p-3 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className={cn("relative w-11 h-11 rounded-md flex items-center justify-center text-white bg-bg-deep border", styles.border)}>
+            <Icon className="w-5 h-5" />
+            {isProtected && <span className="absolute -right-1 -bottom-1 rounded-full bg-app-cyan p-0.5"><Shield className="w-3 h-3 text-bg-deep" /></span>}
+            {isFailed && <span className="absolute -right-1 -bottom-1 rounded-full bg-app-red p-0.5"><AlertTriangle className="w-3 h-3 text-bg-deep" /></span>}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold leading-tight">{data.name}</div>
+                <div className="truncate text-[11px] text-text-secondary">{story?.subtitle ?? "Component"} - {story?.role ?? data.type}</div>
+              </div>
+              <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase", styles.border, styles.text)}>
+                {styles.label}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn("grid gap-2", isComparison ? "grid-cols-2" : "grid-cols-2")}>
+          <Metric icon={isComparison ? Route : Gauge} label={story?.primaryMetricLabel ?? "Availability"} value={story?.primaryMetricValue ?? "100%"} tone={styles.text} />
+          <Metric icon={isComparison ? Shield : Radio} label={story?.secondaryMetricLabel ?? "Connections"} value={story?.secondaryMetricValue ?? "0"} tone={isComparison ? "text-app-cyan" : "text-text-primary"} />
+        </div>
+
+        {isSimulation && (
+          <div className="rounded-md border border-border bg-bg-deep/70 px-2 py-1.5 text-[11px] text-text-secondary">
+            {story?.riskStatement}
           </div>
         )}
-      </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-bold text-sm truncate">{data.name}</span>
-          
-          {isFailed && (
-            <motion.div 
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="text-app-red"
-            >
-              <AlertTriangle className="w-4 h-4 fill-current text-bg-elevated" />
-            </motion.div>
-          )}
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          <ControlChip icon={Lock} label={story?.controlSummary?.[0] ?? "Encrypted"} />
+          <ControlChip icon={Eye} label={story?.controlSummary?.[1] ?? "Monitored"} />
+          <ControlChip icon={data.type === "backup" ? ArchiveRestore : data.type === "web-app" ? Server : Shield} label={story?.controlSummary?.[2] ?? "Single path"} />
+          <span className="rounded bg-bg-deep px-1.5 py-0.5 text-text-secondary">{data.zoneName ?? data.zoneId}</span>
         </div>
-        <span className="text-xs text-text-secondary truncate">{subtitle}</span>
       </div>
 
-      <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2">
-        <div className={cn(
-          "w-3 h-3 rounded-full border-2 border-bg-elevated",
-          statusColors[status]
-        )} />
-        {isFailed && (
-          <div className="absolute inset-0 rounded-full animate-ping bg-app-red opacity-75" />
-        )}
-      </div>
+      {isProtected && <div className="pointer-events-none absolute inset-0 animate-pulse border border-app-cyan/40 rounded-lg" />}
 
       <Handle type="source" position={Position.Right} className="w-2 h-2 !bg-border border-none" />
     </motion.div>
+  );
+}
+
+function Metric({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone: string }) {
+  return (
+    <div className="rounded-md border border-border bg-bg-deep/70 p-2">
+      <div className="flex items-center gap-1 text-[10px] uppercase text-text-secondary">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+      <div className={cn("mt-1 truncate text-sm font-bold", tone)}>{value}</div>
+    </div>
+  );
+}
+
+function ControlChip({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded bg-bg-deep px-1.5 py-0.5 text-text-secondary">
+      <Icon className="h-3 w-3" />
+      {label}
+    </span>
   );
 }

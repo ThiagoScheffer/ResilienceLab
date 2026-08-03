@@ -4,10 +4,12 @@ import { FailureScenario, RecommendationAction, SimulationEvent, SimulationResul
 import { sampleResilientEcommerce, sampleArchitectures } from '../data/sampleArchitectures';
 import { runSimulation, SIMULATION_ENGINE_VERSION } from '../engine/simulationEngine';
 import { hasBlockingValidationIssues, validateArchitecture } from '../engine/validationEngine';
+import { DesignerMode } from '../engine/visualStorytelling';
 
 interface ArchitectureState {
   architecture: Architecture;
   selectedNodeId: string | null;
+  designerMode: DesignerMode;
   simulationState: "idle" | "running" | "complete";
   simulationResult: SimulationResult | null;
   activeScenario: FailureScenario | null;
@@ -21,6 +23,7 @@ interface ArchitectureState {
   saveToLocalStorage: () => void;
   
   selectNode: (id: string | null) => void;
+  setDesignerMode: (mode: DesignerMode) => void;
   addNode: (type: ComponentType, position: {x: number, y: number}, zoneId?: string) => void;
   updateNode: (id: string, updates: Partial<ArchitectureNode>) => void;
   deleteNode: (id: string) => void;
@@ -46,6 +49,7 @@ const normalizeArchitecture = (raw: Architecture): Architecture => ({ ...raw, cr
 export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
   architecture: normalizeArchitecture(sampleResilientEcommerce),
   selectedNodeId: null,
+  designerMode: "edit",
   simulationState: "idle",
   simulationResult: null,
   activeScenario: null,
@@ -60,6 +64,7 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
       set({ 
         architecture: normalizeArchitecture(JSON.parse(JSON.stringify(sample))),
         selectedNodeId: null,
+        designerMode: "edit",
         simulationState: "idle",
         simulationResult: null,
         activeScenario: null,
@@ -88,6 +93,7 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
   },
 
   selectNode: (id) => set({ selectedNodeId: id }),
+  setDesignerMode: (mode) => set({ designerMode: mode }),
 
   addNode: (type, position, zoneId = "az-a") => {
     const newNode: ArchitectureNode = {
@@ -165,7 +171,7 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
     if (!scenario || hasBlockingValidationIssues(get().validationIssues)) return;
     if (simulationTimer) clearInterval(simulationTimer);
 
-    set({ simulationState: "running", simulationResult: null, activeEvents: [], activeScenario: scenario });
+    set({ designerMode: "simulate", simulationState: "running", simulationResult: null, activeEvents: [], activeScenario: scenario });
 
     const result = runSimulation(architecture, scenario);
 

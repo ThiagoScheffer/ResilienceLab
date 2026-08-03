@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -11,7 +11,8 @@ import {
   Edge,
   Node,
   BackgroundVariant,
-  MarkerType
+  MarkerType,
+  useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -19,6 +20,7 @@ import CustomNode from './CustomNode';
 import CustomEdge from './CustomEdge';
 import { useArchitectureStore } from '../../store/architectureStore';
 import { ComponentType } from '../../types/architecture';
+import { getEdgeOperationalState, getNodePresentationMode, getNodeStory } from '../../engine/visualStorytelling';
 
 const nodeTypes = {
   customNode: CustomNode,
@@ -37,17 +39,42 @@ const edgeTypes = {
 
 export default function ArchitectureCanvas() {
   const store = useArchitectureStore();
-  const { architecture, selectNode, addNode, moveNode, updateEdge, deleteEdge } = store;
+  const { architecture, selectNode, addNode, moveNode, updateEdge, deleteEdge, designerMode, simulationState, simulationResult, activeEvents, activeScenario, comparisonResult } = store;
+  const reactFlow = useReactFlow();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const selectedEdge = architecture.edges.find(edge => edge.id === selectedEdgeId);
+  const cameraMoves = useRef(0);
+  const isPresenting = designerMode === "present";
+
+  const focusNodeIds = useMemo(() => {
+    if (simulationResult) {
+      const protectedIds = simulationResult.liveIncident.protectedComponents.map(component => component.id);
+      return Array.from(new Set([...simulationResult.affectedNodes, ...protectedIds, "node-users"]));
+    }
+    if (activeEvents.length > 0) return Array.from(new Set(activeEvents.map(event => event.affectedNodeId)));
+    if (activeScenario?.targetNodeIds.length) {
+      const dependencies = architecture.edges
+        .filter(edge => activeScenario.targetNodeIds.includes(edge.source) || activeScenario.targetNodeIds.includes(edge.target))
+        .flatMap(edge => [edge.source, edge.target]);
+      return Array.from(new Set([...activeScenario.targetNodeIds, ...dependencies]));
+    }
+    return [];
+  }, [activeEvents, activeScenario, architecture.edges, simulationResult]);
 
   const nodes: Node[] = useMemo(() => {
     const regularNodes: Node[] = architecture.nodes.map(n => ({
       id: n.id,
       type: 'customNode',
       position: n.position,
-      data: { ...n },
-      zIndex: 10
+      data: {
+        ...n,
+        designerMode,
+        nodeMode: getNodePresentationMode(designerMode, simulationState, comparisonResult),
+        zoneName: architecture.zones.find(zone => zone.id === n.zoneId)?.name ?? n.zoneId,
+        story: getNodeStory(n, architecture, activeEvents, simulationResult, designerMode, simulationState, comparisonResult)
+      },
+      draggable: !isPresenting,
+      zIndex: focusNodeIds.includes(n.id) ? 20 : 10
     }));
 
     // Calculate zone boundaries
@@ -74,7 +101,7 @@ export default function ArchitectureCanvas() {
     }).filter(Boolean) as Node[];
 
     return [...zoneNodes, ...regularNodes];
-  }, [architecture.nodes, architecture.zones]);
+  }, [activeEvents, architecture, comparisonResult, designerMode, focusNodeIds, isPresenting, simulationResult, simulationState]);
 
   const edges: Edge[] = useMemo(() => {
     return architecture.edges.map(e => ({
@@ -82,17 +109,32 @@ export default function ArchitectureCanvas() {
       source: e.source,
       target: e.target,
       type: 'customEdge',
-      data: { type: e.type, required: e.required },
+      data: { type: e.type, required: e.required, operationalState: getEdgeOperationalState(e, architecture, simulationResult) },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         width: 15,
         height: 15,
-        color: e.type === "synchronous" ? "var(--blue)" : e.type === "asynchronous" ? "var(--cyan)" : "var(--text-secondary)"
+        color: getEdgeOperationalState(e, architecture, simulationResult) === "broken" ? "var(--red)" : getEdgeOperationalState(e, architecture, simulationResult) === "failover" ? "var(--green)" : e.type === "synchronous" ? "var(--blue)" : e.type === "asynchronous" || e.type === "replication" ? "var(--cyan)" : "var(--text-secondary)"
       }
     }));
-  }, [architecture.edges]);
+  }, [architecture, simulationResult]);
+
+  useEffect(() => {
+    cameraMoves.current = 0;
+  }, [activeScenario?.id]);
+
+  useEffect(() => {
+    if (!focusNodeIds.length || cameraMoves.current >= 3) return;
+    const focusNodes = nodes.filter(node => focusNodeIds.includes(node.id));
+    if (!focusNodes.length) return;
+    window.setTimeout(() => {
+      reactFlow.fitView({ nodes: focusNodes, padding: isPresenting ? 0.25 : 0.35, duration: 700 });
+      cameraMoves.current += 1;
+    }, 80);
+  }, [focusNodeIds, isPresenting, nodes, reactFlow]);
 
   const onNodesChange = useCallback((changes: any) => {
+    if (isPresenting) return;
     changes.forEach((c: any) => {
       if (c.type === 'position' && c.position && !c.dragging && !c.id.startsWith('zone-')) {
         moveNode(c.id, c.position);
@@ -101,13 +143,14 @@ export default function ArchitectureCanvas() {
         if (c.selected) selectNode(c.id);
       }
     });
-  }, [moveNode, selectNode]);
+  }, [isPresenting, moveNode, selectNode]);
 
   const onPaneClick = useCallback(() => {
     selectNode(null);
   }, [selectNode]);
 
   const onConnect = useCallback((connection: Connection) => {
+    if (isPresenting) return;
     store.addEdge({
       id: `e-${connection.source}-${connection.target}`,
       source: connection.source!,
@@ -115,7 +158,7 @@ export default function ArchitectureCanvas() {
       type: "synchronous",
       required: true
     });
-  }, [store]);
+  }, [isPresenting, store]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -127,7 +170,7 @@ export default function ArchitectureCanvas() {
       event.preventDefault();
 
       const type = event.dataTransfer.getData('application/reactflow') as ComponentType;
-      if (!type) return;
+      if (!type || isPresenting) return;
 
       const position = {
         x: event.clientX - 250,
@@ -136,7 +179,7 @@ export default function ArchitectureCanvas() {
 
       addNode(type, position);
     },
-    [addNode]
+    [addNode, isPresenting]
   );
 
   return (
@@ -153,13 +196,16 @@ export default function ArchitectureCanvas() {
         onInit={(instance) => instance.fitView({ padding: 0.2 })}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        nodesDraggable={!isPresenting}
+        nodesConnectable={!isPresenting}
+        elementsSelectable={!isPresenting}
         proOptions={{ hideAttribution: true }}
         className="dark"
       >
         <Controls className="bg-bg-panel border-border fill-white" />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="transparent" />
       </ReactFlow>
-      {selectedEdge && <div className="absolute right-3 top-3 z-20 bg-bg-panel border border-border rounded-lg p-3 shadow-lg text-xs space-y-2">
+      {selectedEdge && !isPresenting && <div className="absolute right-3 top-3 z-20 bg-bg-panel border border-border rounded-lg p-3 shadow-lg text-xs space-y-2">
         <div className="font-semibold text-text-primary">Dependency</div>
         <select value={selectedEdge.type} onChange={event => updateEdge(selectedEdge.id, { type: event.target.value as typeof selectedEdge.type })} className="bg-bg-deep border border-border rounded px-2 py-1 text-text-primary">
           <option value="synchronous">Synchronous</option><option value="asynchronous">Asynchronous</option><option value="replication">Replication</option><option value="monitoring">Monitoring</option><option value="backup">Backup</option>

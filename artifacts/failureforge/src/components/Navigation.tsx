@@ -1,13 +1,14 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Zap, Play, ChevronDown, Check, Download } from 'lucide-react';
+import { Zap, ChevronDown, Download, MousePointer2, Presentation, Radar } from 'lucide-react';
 import { useArchitectureStore } from '../store/architectureStore';
+import { DesignerMode } from '../engine/visualStorytelling';
 
 import { useToast } from '@/hooks/use-toast';
 
 export default function Navigation() {
   const [location, setLocation] = useLocation();
-  const { architecture, saveToLocalStorage, setScenario } = useArchitectureStore();
+  const { architecture, saveToLocalStorage, setScenario, designerMode, setDesignerMode } = useArchitectureStore();
   const { toast } = useToast();
 
   const handleSave = () => {
@@ -17,6 +18,12 @@ export default function Navigation() {
       description: "Architecture saved to local storage."
     });
   };
+
+  const modeOptions: Array<{ mode: DesignerMode; label: string; icon: React.ElementType }> = [
+    { mode: "edit", label: "Edit", icon: MousePointer2 },
+    { mode: "simulate", label: "Simulate", icon: Radar },
+    { mode: "present", label: "Present", icon: Presentation }
+  ];
 
   return (
     <header className="h-14 border-b border-border bg-bg-panel flex items-center justify-between px-4 shrink-0">
@@ -36,6 +43,23 @@ export default function Navigation() {
 
       {location === '/designer' && (
         <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-md border border-border bg-bg-deep p-0.5">
+            {modeOptions.map(option => {
+              const Icon = option.icon;
+              const active = designerMode === option.mode;
+              return (
+                <button
+                  key={option.mode}
+                  onClick={() => setDesignerMode(option.mode)}
+                  className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-app-blue text-white" : "text-text-secondary hover:text-white hover:bg-bg-elevated"}`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
           <button 
             onClick={handleSave}
             className="text-text-secondary hover:text-white px-3 py-1.5 text-sm rounded flex items-center gap-2 transition-colors"

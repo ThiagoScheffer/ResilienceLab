@@ -77,6 +77,11 @@ This is important because a resilient design can still experience a severe outag
 - [x] Failover reachability checks for database recovery
 - [x] AZ outage reasoning tied to surviving zones and routing paths
 - [x] Cost and sustainability preserved as posture metrics with separate incident impact
+- [x] Specialized operational node cards for competition storytelling
+- [x] Live incident strip with customer and business-impact metrics
+- [x] Present mode for judge-facing demonstrations
+- [x] Right-panel incident tabs for timeline, reasoning, and fix presentation
+- [x] Narrative Fragile Checkout preset with hidden failover gap
 
 ## Changelog
 
@@ -85,6 +90,19 @@ This is important because a resilient design can still experience a severe outag
 - [x] Added this documentation tracker.
 - [x] Captured the current implementation status in one place.
 - [x] Added a changelog-style checklist for ongoing work.
+
+### 2026-08-03: competition visual storytelling upgrade
+
+- [x] Added specialized operational node cards for load balancers, web apps, databases, cache, queue, storage, backup, monitoring, and users.
+- [x] Added design, simulation, and comparison node presentation modes.
+- [x] Added reason chips for initiating failures, dependency loss, unavailable writable alternatives, backup recovery-only behavior, and failover protection.
+- [x] Added operational edge labels and animation states for customer traffic, broken dependencies, queues, replication, backup, monitoring, and failover promotion.
+- [x] Added a live incident strip that surfaces severity, availability, checkout success, headroom, latency, data-loss risk, recovery, and incident-loss units.
+- [x] Added Edit, Simulate, and Present mode controls.
+- [x] Converted the fragile sample into a realistic checkout topology with a replica, backup, monitoring, cache, and queue but missing failover wiring.
+- [x] Updated the guided demo to use “The Checkout That Could Not Fail.”
+- [x] Tuned database-outage timeline events to show replica detection, missing failover, missing endpoint, promotion, endpoint update, and application reconnection.
+- [x] Added right-panel simulation tabs for Incident, Timeline, Why, and Fix.
 
 ### 2026-08-03: resilience model hardening
 
@@ -109,7 +127,8 @@ These items are the best candidates for the next round of implementation or veri
 
 - [ ] Add or expand automated regression coverage for all six scenarios.
 - [ ] Add snapshot coverage for the guided demo sequence.
-- [ ] Verify the production build and type checks in the current workspace.
+- [x] Verify TypeScript checks in the current workspace.
+- [ ] Verify the production build after restoring Rollup's missing Windows optional dependency.
 - [ ] Review the remaining UI copy for consistency and any malformed characters.
 - [ ] Keep the checklist updated as features land so the document stays current.
 
@@ -122,7 +141,7 @@ Use this checklist before shipping or showing the demo:
 - [ ] Apply a recommendation and rerun the same scenario to confirm the result materially improves.
 - [ ] Confirm the report footer shows the active simulation engine version during development.
 - [ ] Confirm saved browser state does not restore stale simulation results from an older engine version.
-- [ ] Run TypeScript checks.
+- [x] Run TypeScript checks.
 - [ ] Run the production build.
 
 ## Notes For Future Updates
@@ -131,4 +150,3 @@ Use this checklist before shipping or showing the demo:
 - Add new items to the changelog as discrete, dated entries.
 - Mark checklist items as soon as the code lands, not only after the final demo pass.
 - If a change affects simulation behavior, update both the status section and the verification checklist.
-

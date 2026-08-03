@@ -2,44 +2,121 @@ import { Architecture } from "../types/architecture";
 
 export const sampleFragileStartup: Architecture = {
   id: "fragile-startup",
-  name: "Fragile Startup",
+  name: "Fragile Checkout",
   region: "us-east-1",
   zones: [
     { id: "global", name: "Global", color: "#233349" },
-    { id: "az-a", name: "AZ-A", color: "#121F30" }
+    { id: "az-a", name: "AZ-A", color: "#121F30" },
+    { id: "az-b", name: "AZ-B", color: "#121F30" }
   ],
   nodes: [
     {
       id: "node-users",
       type: "users",
-      name: "Users",
+      name: "Customers",
       zoneId: "global",
-      position: { x: 100, y: 150 },
+      position: { x: 40, y: 300 },
       status: "healthy",
       configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: false, publiclyAccessible: true, backupsEnabled: false, monitoringEnabled: false, recoveryTimeMinutes: 0, monthlyCostUnits: 0 }
     },
     {
+      id: "node-lb",
+      type: "load-balancer",
+      name: "Checkout Load Balancer",
+      zoneId: "global",
+      position: { x: 250, y: 300 },
+      status: "healthy",
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: true, backupsEnabled: false, monitoringEnabled: true, healthChecksEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 30 }
+    },
+    {
       id: "node-webapp-1",
       type: "web-app",
-      name: "API Server",
+      name: "Web App A",
       zoneId: "az-a",
-      position: { x: 350, y: 150 },
+      position: { x: 500, y: 200 },
       status: "healthy",
-      configuration: { capacity: 5, redundant: false, autoscaling: false, encrypted: true, publiclyAccessible: true, backupsEnabled: false, monitoringEnabled: false, recoveryTimeMinutes: 30, monthlyCostUnits: 50 }
+      configuration: { capacity: 7, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, failoverEndpointEnabled: false, recoveryTimeMinutes: 30, monthlyCostUnits: 55 }
+    },
+    {
+      id: "node-webapp-2",
+      type: "web-app",
+      name: "Web App B",
+      zoneId: "az-b",
+      position: { x: 500, y: 400 },
+      status: "healthy",
+      configuration: { capacity: 7, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, failoverEndpointEnabled: false, recoveryTimeMinutes: 30, monthlyCostUnits: 55 }
+    },
+    {
+      id: "node-cache",
+      type: "cache",
+      name: "Redis Cache",
+      zoneId: "az-a",
+      position: { x: 760, y: 170 },
+      status: "healthy",
+      configuration: { capacity: 6, redundant: false, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 15, monthlyCostUnits: 35 }
+    },
+    {
+      id: "node-queue",
+      type: "queue",
+      name: "Checkout Events Queue",
+      zoneId: "az-a",
+      position: { x: 760, y: 310 },
+      status: "healthy",
+      configuration: { capacity: 8, redundant: true, autoscaling: true, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 10, monthlyCostUnits: 25 }
     },
     {
       id: "node-db-1",
       type: "database",
-      name: "Primary DB",
+      name: "Primary PostgreSQL",
       zoneId: "az-a",
-      position: { x: 600, y: 150 },
+      position: { x: 1010, y: 260 },
       status: "healthy",
-      configuration: { capacity: 5, redundant: false, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: false, recoveryTimeMinutes: 120, monthlyCostUnits: 100 }
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: true, monitoringEnabled: true, failoverEnabled: false, recoveryTimeMinutes: 47, monthlyCostUnits: 140 }
+    },
+    {
+      id: "node-db-replica",
+      type: "database",
+      name: "Standby Replica",
+      zoneId: "az-b",
+      position: { x: 1010, y: 430 },
+      status: "healthy",
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, failoverEnabled: false, recoveryTimeMinutes: 20, monthlyCostUnits: 110 }
+    },
+    {
+      id: "node-backup",
+      type: "backup",
+      name: "Backup Vault",
+      zoneId: "global",
+      position: { x: 1260, y: 250 },
+      status: "healthy",
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: false, recoveryTimeMinutes: 60, monthlyCostUnits: 25 }
+    },
+    {
+      id: "node-monitoring",
+      type: "monitoring",
+      name: "Incident Monitoring",
+      zoneId: "global",
+      position: { x: 250, y: 90 },
+      status: "healthy",
+      configuration: { capacity: 10, redundant: true, autoscaling: false, encrypted: true, publiclyAccessible: false, backupsEnabled: false, monitoringEnabled: true, recoveryTimeMinutes: 5, monthlyCostUnits: 35 }
     }
   ],
   edges: [
-    { id: "e1", source: "node-users", target: "node-webapp-1", type: "synchronous", required: true },
-    { id: "e2", source: "node-webapp-1", target: "node-db-1", type: "synchronous", required: true }
+    { id: "e1", source: "node-users", target: "node-lb", type: "synchronous", required: true },
+    { id: "e2", source: "node-lb", target: "node-webapp-1", type: "synchronous", required: true },
+    { id: "e3", source: "node-lb", target: "node-webapp-2", type: "synchronous", required: true },
+    { id: "e4", source: "node-webapp-1", target: "node-cache", type: "synchronous", required: false },
+    { id: "e5", source: "node-webapp-2", target: "node-cache", type: "synchronous", required: false },
+    { id: "e6", source: "node-webapp-1", target: "node-queue", type: "asynchronous", required: false },
+    { id: "e7", source: "node-webapp-2", target: "node-queue", type: "asynchronous", required: false },
+    { id: "e8", source: "node-webapp-1", target: "node-db-1", type: "synchronous", required: true },
+    { id: "e9", source: "node-webapp-2", target: "node-db-1", type: "synchronous", required: true },
+    { id: "e10", source: "node-queue", target: "node-db-1", type: "asynchronous", required: true },
+    { id: "e11", source: "node-db-1", target: "node-db-replica", type: "replication", required: false },
+    { id: "e12", source: "node-db-1", target: "node-backup", type: "backup", required: false },
+    { id: "e13", source: "node-db-1", target: "node-monitoring", type: "monitoring", required: false },
+    { id: "e14", source: "node-webapp-1", target: "node-monitoring", type: "monitoring", required: false },
+    { id: "e15", source: "node-webapp-2", target: "node-monitoring", type: "monitoring", required: false }
   ]
 };
 

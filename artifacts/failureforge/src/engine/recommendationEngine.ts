@@ -22,11 +22,12 @@ export const generateRecommendations = (
   if (result.scenario.type === "database-outage" && databases.length > 0 && (!databases[0].configuration.failoverEnabled || !webApps.some(app => app.configuration.failoverEndpointEnabled))) {
     recommendations.push({
       id: "rec-enable-db-failover-endpoint",
-      title: "Enable application database failover",
-      description: "Configure primary promotion and a shared database endpoint before relying on a standby replica.",
+      title: "Apply Resilience Upgrade",
+      description: "Enable automatic promotion, standby endpoint resolution, and monitoring automation before relying on the replica.",
       priority: "critical",
-      affectedPillars: ["reliability", "operational-excellence"],
-      estimatedScoreImpact: { reliability: 14, "operational-excellence": 8 },
+      affectedPillars: ["reliability", "operational-excellence", "cost", "sustainability"],
+      estimatedScoreImpact: { reliability: 23, "operational-excellence": 16, cost: -8, sustainability: -5 },
+      estimatedMonthlyCostDelta: 85,
       estimatedOutageLossReduction: Math.round(result.liveIncident.estimatedBusinessImpactUnits * .6),
       action: { type: "update-config", nodeId: "all", changes: { failoverEnabled: true, failoverEndpointEnabled: true, monitoringEnabled: true } }
     });

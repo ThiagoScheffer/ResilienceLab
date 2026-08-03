@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, RotateCcw, AlertTriangle, Clock, ShieldAlert, X } from 'lucide-react';
+import { Play, RotateCcw, AlertTriangle, Clock, ShieldAlert, X, Activity, Gauge, TrendingDown } from 'lucide-react';
 import { useArchitectureStore } from '../../store/architectureStore';
 import { FailureScenario } from '../../types/simulation';
 
@@ -55,7 +55,7 @@ const scenarios: FailureScenario[] = [
 ];
 
 export default function SimulationPanel() {
-  const { architecture, simulationState, activeScenario, setScenario, runSimulation, resetSimulation, activeEvents, simulationResult, validationIssues, applyRecommendation, comparisonResult } = useArchitectureStore();
+  const { architecture, simulationState, activeScenario, setScenario, runSimulation, resetSimulation, activeEvents, simulationResult, validationIssues, applyRecommendation, comparisonResult, designerMode } = useArchitectureStore();
   const applicable = (scenario: FailureScenario) => {
     if (scenario.type === "database-outage") return architecture.nodes.some(node => node.type === "database");
     if (scenario.type === "traffic-spike" || scenario.type === "instance-failure" || scenario.type === "deployment-regression") return architecture.nodes.some(node => node.type === "web-app");
@@ -107,7 +107,10 @@ export default function SimulationPanel() {
 
   return (
     <>
-    <div id="simulation-panel" className="h-48 border-t border-border bg-bg-panel shrink-0 flex">
+    {(simulationState !== "idle" || simulationResult || designerMode === "present") && (
+      <IncidentStrip simulationResult={simulationResult} simulationState={simulationState} activeScenario={activeScenario} />
+    )}
+    <div id="simulation-panel" className={`${designerMode === "present" ? "h-56" : "h-48"} border-t border-border bg-bg-panel shrink-0 flex`}>
       <div className="w-1/3 border-r border-border p-4 flex flex-col">
         <h3 className="text-sm font-semibold mb-3 text-text-secondary uppercase tracking-wider">Simulation Scenario</h3>
         
@@ -315,5 +318,47 @@ export default function SimulationPanel() {
       </div>
     )}
     </>
+  );
+}
+
+function IncidentStrip({ simulationResult, simulationState, activeScenario }: { simulationResult: ReturnType<typeof useArchitectureStore.getState>["simulationResult"]; simulationState: "idle" | "running" | "complete"; activeScenario: FailureScenario | null }) {
+  const availability = simulationResult?.customerAvailability ?? (simulationState === "running" ? 0 : 100);
+  const severity = simulationResult?.impactSeverity ?? activeScenario?.severity ?? "high";
+  const checkoutSuccess = simulationResult ? Math.max(0, Math.min(100, simulationResult.customerAvailability - (simulationResult.liveIncident.latencyBand === "severe" ? 12 : 0))) : availability;
+  const headroom = simulationResult?.liveIncident.capacityHeadroomPercent ?? 0;
+  const latency = simulationResult?.liveIncident.latencyBand ?? (simulationState === "running" ? "evaluating" : "normal");
+  const dataRisk = simulationResult?.dataLossRisk ?? "evaluating";
+  const recovery = simulationResult ? `${simulationResult.estimatedRecoveryMinutes} min` : "calculating";
+  const loss = simulationResult?.liveIncident.estimatedBusinessImpactUnits ?? 0;
+  const isCritical = availability < 25 || severity === "critical";
+
+  return (
+    <div className={`border-t border-border px-4 py-3 ${isCritical ? "bg-app-red/12" : "bg-bg-panel"}`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className={`rounded border px-3 py-2 ${isCritical ? "border-app-red/50 bg-app-red/15 text-app-red" : "border-app-amber/40 bg-app-amber/10 text-app-amber"}`}>
+          <div className="text-[10px] font-bold uppercase tracking-widest">Live incident</div>
+          <div className="text-lg font-black uppercase leading-none">{isCritical ? "Critical" : severity}</div>
+        </div>
+        <StripMetric icon={Activity} label="Availability" value={`${availability}%`} danger={availability < 25} />
+        <StripMetric icon={Gauge} label="Checkout success" value={`${checkoutSuccess}%`} danger={checkoutSuccess < 25} />
+        <StripMetric icon={TrendingDown} label="Headroom" value={`${headroom}%`} danger={headroom < 0} />
+        <StripMetric icon={Clock} label="Latency" value={latency} danger={latency === "severe" || latency === "unavailable"} />
+        <StripMetric icon={ShieldAlert} label="Data risk" value={dataRisk} danger={dataRisk === "high" || dataRisk === "critical"} />
+        <StripMetric icon={Clock} label="Recovery" value={recovery} danger={availability < 25} />
+        <StripMetric icon={TrendingDown} label="Incident loss" value={`${loss} units`} danger={loss > 0} />
+      </div>
+    </div>
+  );
+}
+
+function StripMetric({ icon: Icon, label, value, danger }: { icon: React.ElementType; label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="min-w-[118px] rounded-md border border-border bg-bg-deep px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-text-secondary">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className={`mt-0.5 truncate text-sm font-bold capitalize ${danger ? "text-app-red" : "text-text-primary"}`}>{value}</div>
+    </div>
   );
 }

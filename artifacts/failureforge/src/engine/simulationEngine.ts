@@ -59,7 +59,18 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
       change(id, protectedRelease ? "degraded" : "failed", protectedRelease ? `${node.name} rolled back after failing health checks.` : `${node.name} failed after an unhealthy release.`);
     });
   } else if (scenario.type === "database-outage") {
-    scenario.targetNodeIds.forEach(id => { const node = byId.get(id); if (node) change(id, "failed", `${node.name} failed; evaluating standby promotion.`); });
+    scenario.targetNodeIds.forEach(id => {
+      const node = byId.get(id); if (!node) return;
+      change(id, "failed", `${node.name} failed.`);
+      const replica = databases().find(candidate => candidate.id !== node.id && candidate.zoneId !== node.zoneId && architecture.edges.some(edge => edge.source === node.id && edge.target === candidate.id && edge.type === "replication"));
+      if (replica) log(replica, `${replica.name} detected as a standby replica.`);
+      if (!node.configuration.failoverEnabled) log(node, "Automatic failover not configured.");
+      const applicationEndpointReady = webApps().some(app => app.configuration.failoverEndpointEnabled);
+      if (!applicationEndpointReady) log(node, "No writable failover endpoint is available to applications.");
+      if (replica && node.configuration.failoverEnabled && applicationEndpointReady) {
+        log(replica, `${replica.name} is eligible for promotion.`);
+      }
+    });
   } else {
     scenario.targetNodeIds.forEach(id => { const node = byId.get(id); if (node) change(id, "failed", `${node.name} became unavailable.`); });
   }
@@ -82,7 +93,9 @@ export const runSimulation = (architecture: Architecture, scenario: FailureScena
           if (!promotedDatabases.has(dependency.id)) {
             promotedDatabases.add(dependency.id);
             const replica = databases().find(candidate => candidate.id !== dependency.id && candidate.zoneId !== dependency.zoneId && candidate.status !== "failed")!;
+            log(replica, "Failure detected by monitoring automation.");
             log(replica, `${replica.name} promoted to writable primary.`);
+            log(replica, "Database endpoint updated to the promoted standby.");
           }
           log(dependant, `${dependant.name} switched to the failover database endpoint; writes continue.`); return false;
         }
