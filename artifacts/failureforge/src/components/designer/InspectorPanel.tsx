@@ -1,8 +1,10 @@
 import React from 'react';
 import { useArchitectureStore } from '../../store/architectureStore';
 import { calculateArchitecturePosture, getIncidentHealthLabel, getLiveIncidentHealth, getOverallHealth, getHealthLabel, getScoreSeverity } from '../../engine/scoringEngine';
-import { Pillar } from '../../types/architecture';
+import { AwsServicePreset, Pillar } from '../../types/architecture';
 import { Shield, Settings, Activity, Zap, DollarSign, Leaf, Trash2, AlertTriangle } from 'lucide-react';
+import { getSolutionPlaybook } from '../../engine/solutionPlaybooks';
+import { awsServicePresets, getDefaultAwsPreset } from '../../lib/awsServicePresets';
 
 const pillarIcons: Record<Pillar, React.ElementType> = {
   "reliability": Shield,
@@ -40,6 +42,7 @@ export default function InspectorPanel() {
     const incidentHealth = simulationResult ? getLiveIncidentHealth(simulationResult) : 0;
     const incidentLabel = simulationResult ? getIncidentHealthLabel(incidentHealth, simulationResult.customerAvailability) : "Evaluating";
     const isCritical = incidentLabel === "Critical";
+    const playbook = getSolutionPlaybook(simulationResult?.scenario ?? null, simulationResult);
     const whySteps = simulationResult?.scoreExplanations.slice(0, 4).map(explanation => explanation.reason) ?? [
       "The selected failure is being evaluated against required dependencies.",
       "The engine checks reachable alternatives, routing, monitoring, and failover controls.",
@@ -159,9 +162,19 @@ export default function InspectorPanel() {
 
           {eventTab === "fix" && (
             <div className="space-y-3">
+              <div className="rounded-lg border border-app-orange/40 bg-app-orange/5 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-app-orange">Solution playbook</div>
+                <h3 className="mt-2 text-base font-bold">{playbook.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-text-secondary">{playbook.problem}</p>
+                <div className="mt-3 rounded bg-bg-deep p-2 text-xs"><span className="font-semibold text-app-cyan">AWS pattern: </span>{playbook.awsPattern}</div>
+                <ol className="mt-3 space-y-2 text-xs text-text-secondary list-decimal list-inside">{playbook.steps.map(step => <li key={step}>{step}</li>)}</ol>
+                <div className="mt-3 text-xs text-app-green">Expected: {playbook.outcome}</div>
+                <div className="mt-1 text-xs text-app-amber">Trade-off: {playbook.tradeoff}</div>
+                <div className="mt-2 flex flex-wrap gap-1">{playbook.pillars.map(pillar => <span key={pillar} className="rounded bg-bg-deep px-1.5 py-0.5 text-[10px] text-text-secondary">{pillar}</span>)}</div>
+              </div>
               {topRecommendation ? (
                 <div className="rounded-lg border border-app-cyan/40 bg-app-cyan/10 p-3">
-                  <div className="text-xs font-bold uppercase tracking-widest text-app-cyan">Recommendation</div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-app-cyan">Apply locally, then rerun</div>
                   <h3 className="mt-2 text-lg font-bold">{topRecommendation.title === "Enable application database failover" ? "Apply Resilience Upgrade" : topRecommendation.title}</h3>
                   <p className="mt-2 text-sm text-text-secondary">{topRecommendation.description}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -265,6 +278,12 @@ export default function InspectorPanel() {
                 {architecture.zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
               </select>
             </div>
+
+            <label className="block text-xs text-text-secondary">AWS service preset
+              <select value={selectedNode.configuration.awsServicePreset ?? getDefaultAwsPreset(selectedNode.type)} onChange={event => updateNode(selectedNode.id, { configuration: { ...selectedNode.configuration, awsServicePreset: event.target.value as AwsServicePreset } })} className="mt-1 w-full bg-bg-deep border border-border rounded px-2 py-1.5 text-sm text-text-primary">
+                {Object.values(awsServicePresets).map(preset => <option key={preset.id} value={preset.id}>{preset.shortName}</option>)}
+              </select>
+            </label>
 
             <div className="space-y-3 pt-4 border-t border-border">
               <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Configuration</h3>

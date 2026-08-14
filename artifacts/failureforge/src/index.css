@@ -73,6 +73,7 @@
   --color-app-cyan: var(--cyan);
   --color-app-green: var(--green);
   --color-app-amber: var(--amber);
+  --color-app-orange: var(--orange);
   --color-app-red: var(--red);
   --color-app-purple: var(--purple);
   --color-text-secondary: var(--text-secondary);
@@ -92,6 +93,7 @@
   --cyan: #29C6D1;
   --green: #43D17B;
   --amber: #F7B84B;
+  --orange: #FF9900;
   --red: #F05D5E;
   --purple: #A46CFF;
   --text-primary: #F3F7FC;
@@ -204,3 +206,7 @@
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
   background-size: 20px 20px;
 }
+
+.dock-resizer-x { width: 5px; cursor: col-resize; background: var(--border); opacity: .45; transition: opacity .15s; flex: 0 0 5px; z-index: 20; }
+.dock-resizer-y { height: 5px; cursor: row-resize; background: var(--border); opacity: .45; transition: opacity .15s; flex: 0 0 5px; z-index: 20; }
+.dock-resizer-x:hover, .dock-resizer-y:hover { opacity: 1; background: var(--orange); }

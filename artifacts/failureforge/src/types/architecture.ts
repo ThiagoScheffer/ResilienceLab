@@ -5,6 +5,8 @@ export type FailureType = "instance-failure" | "database-outage" | "traffic-spik
 export type Pillar = "operational-excellence" | "security" | "reliability" | "performance" | "cost" | "sustainability";
 
 export interface NodeConfiguration {
+  /** Display-only AWS service mapping. It never changes simulation behavior. */
+  awsServicePreset?: AwsServicePreset;
   capacity: number;
   redundant: boolean;
   autoscaling: boolean;
@@ -21,6 +23,18 @@ export interface NodeConfiguration {
   recoveryTimeMinutes: number;
   monthlyCostUnits: number;
 }
+
+export type AwsServicePreset =
+  | "amazon-cloudfront"
+  | "application-load-balancer"
+  | "amazon-ec2"
+  | "amazon-rds"
+  | "amazon-elasticache"
+  | "amazon-sqs"
+  | "amazon-s3"
+  | "aws-backup"
+  | "amazon-cloudwatch"
+  | "users";
 
 export interface ArchitectureNode {
   id: string;

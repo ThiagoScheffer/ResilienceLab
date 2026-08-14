@@ -6,6 +6,18 @@ import { runSimulation, SIMULATION_ENGINE_VERSION } from '../engine/simulationEn
 import { hasBlockingValidationIssues, validateArchitecture } from '../engine/validationEngine';
 import { DesignerMode } from '../engine/visualStorytelling';
 
+export type CanvasTool = "select" | "pan" | "connect";
+export interface WorkspacePreferences {
+  leftWidth: number;
+  rightWidth: number;
+  bottomHeight: number;
+  leftCollapsed: boolean;
+  rightCollapsed: boolean;
+  bottomCollapsed: boolean;
+  activeLeftTab: "components" | "presets";
+  canvasTool: CanvasTool;
+}
+
 interface ArchitectureState {
   architecture: Architecture;
   selectedNodeId: string | null;
@@ -16,6 +28,7 @@ interface ArchitectureState {
   activeEvents: SimulationEvent[];
   validationIssues: ValidationIssue[];
   comparisonResult: SimulationResult | null;
+  workspace: WorkspacePreferences;
   
   // Actions
   loadSampleArchitecture: (id: string) => void;
@@ -38,16 +51,23 @@ interface ArchitectureState {
   runSimulation: (scenario?: FailureScenario) => void;
   resetSimulation: () => void;
   applyRecommendation: (action: RecommendationAction) => void;
+  updateWorkspace: (updates: Partial<WorkspacePreferences>) => void;
 }
 
 const STORAGE_KEY = 'failureforge_architecture';
+const WORKSPACE_KEY = 'failureforge_workspace_v1';
+const workspaceDefaults: WorkspacePreferences = { leftWidth: 272, rightWidth: 336, bottomHeight: 212, leftCollapsed: false, rightCollapsed: false, bottomCollapsed: false, activeLeftTab: "components", canvasTool: "select" };
+const loadWorkspace = (): WorkspacePreferences => {
+  try { return { ...workspaceDefaults, ...JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? "{}") }; }
+  catch { return workspaceDefaults; }
+};
 let simulationTimer: ReturnType<typeof setInterval> | null = null;
 const defaults: Pick<NodeConfiguration, "credentialProtected" | "healthChecksEnabled" | "failoverEnabled" | "failoverEndpointEnabled" | "deploymentStrategy" | "rollbackEnabled"> = { credentialProtected: false, healthChecksEnabled: false, failoverEnabled: false, failoverEndpointEnabled: false, deploymentStrategy: "all-at-once", rollbackEnabled: false };
 const touch = (architecture: Architecture): Architecture => ({ ...architecture, updatedAt: new Date().toISOString() });
 const normalizeArchitecture = (raw: Architecture): Architecture => ({ ...raw, createdAt: raw.createdAt ?? new Date().toISOString(), updatedAt: raw.updatedAt ?? new Date().toISOString(), nodes: raw.nodes.map(node => ({ ...node, status: node.status ?? "healthy", configuration: { ...defaults, ...node.configuration } })) });
 
 export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
-  architecture: normalizeArchitecture(sampleResilientEcommerce),
+  architecture: normalizeArchitecture(sampleArchitectures[0] ?? sampleResilientEcommerce),
   selectedNodeId: null,
   designerMode: "edit",
   simulationState: "idle",
@@ -56,6 +76,7 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
   activeEvents: [],
   validationIssues: validateArchitecture(normalizeArchitecture(sampleResilientEcommerce)),
   comparisonResult: null,
+  workspace: typeof window === "undefined" ? workspaceDefaults : loadWorkspace(),
 
   loadSampleArchitecture: (id) => {
     const sample = sampleArchitectures.find(a => a.id === id);
@@ -94,6 +115,11 @@ export const useArchitectureStore = create<ArchitectureState>((set, get) => ({
 
   selectNode: (id) => set({ selectedNodeId: id }),
   setDesignerMode: (mode) => set({ designerMode: mode }),
+  updateWorkspace: (updates) => set(state => {
+    const workspace = { ...state.workspace, ...updates };
+    localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
+    return { workspace };
+  }),
 
   addNode: (type, position, zoneId = "az-a") => {
     const newNode: ArchitectureNode = {

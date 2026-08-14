@@ -112,7 +112,7 @@ export default function SimulationPanel() {
     {(simulationState !== "idle" || simulationResult || designerMode === "present") && (
       <IncidentStrip simulationResult={simulationResult} simulationState={simulationState} activeScenario={activeScenario} />
     )}
-    <div id="simulation-panel" className={`${designerMode === "present" ? "h-56" : "h-48"} border-t border-border bg-bg-panel shrink-0 flex`}>
+    <div id="simulation-panel" className="h-full border-t border-border bg-bg-panel shrink-0 flex">
       <div className="w-1/3 border-r border-border p-4 flex flex-col">
         <h3 className="text-sm font-semibold mb-3 text-text-secondary uppercase tracking-wider">Simulation Scenario</h3>
         

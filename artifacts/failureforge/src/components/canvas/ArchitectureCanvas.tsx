@@ -39,12 +39,14 @@ const edgeTypes = {
 
 export default function ArchitectureCanvas() {
   const store = useArchitectureStore();
-  const { architecture, selectNode, addNode, moveNode, updateEdge, deleteEdge, designerMode, simulationState, simulationResult, activeEvents, activeScenario, comparisonResult } = store;
+  const { architecture, selectNode, addNode, moveNode, updateEdge, deleteEdge, designerMode, simulationState, simulationResult, activeEvents, activeScenario, comparisonResult, workspace, updateWorkspace } = store;
   const reactFlow = useReactFlow();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const selectedEdge = architecture.edges.find(edge => edge.id === selectedEdgeId);
   const cameraMoves = useRef(0);
   const isPresenting = designerMode === "present";
+  const isPanTool = workspace.canvasTool === "pan";
+  const isConnectTool = workspace.canvasTool === "connect";
 
   const focusNodeIds = useMemo(() => {
     if (simulationResult) {
@@ -133,6 +135,19 @@ export default function ArchitectureCanvas() {
     }, 80);
   }, [focusNodeIds, isPresenting, nodes, reactFlow]);
 
+  useEffect(() => {
+    const fit = () => reactFlow.fitView({ padding: isPresenting ? 0.22 : 0.16, duration: 500 });
+    const keys = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement)?.matches("input, textarea, select")) return;
+      if (event.key.toLowerCase() === "v") updateWorkspace({ canvasTool: "select" });
+      if (event.key.toLowerCase() === "h") updateWorkspace({ canvasTool: "pan" });
+      if (event.key.toLowerCase() === "c") updateWorkspace({ canvasTool: "connect" });
+      if (event.key.toLowerCase() === "f") fit();
+    };
+    window.addEventListener("failureforge:fit-view", fit); window.addEventListener("keydown", keys);
+    return () => { window.removeEventListener("failureforge:fit-view", fit); window.removeEventListener("keydown", keys); };
+  }, [isPresenting, reactFlow, updateWorkspace]);
+
   const onNodesChange = useCallback((changes: any) => {
     if (isPresenting) return;
     changes.forEach((c: any) => {
@@ -197,8 +212,11 @@ export default function ArchitectureCanvas() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         nodesDraggable={!isPresenting}
-        nodesConnectable={!isPresenting}
-        elementsSelectable={!isPresenting}
+        nodesConnectable={!isPresenting && isConnectTool}
+        elementsSelectable={!isPresenting && !isPanTool}
+        panOnDrag={isPanTool}
+        selectionOnDrag={!isPanTool}
+        panOnScroll
         proOptions={{ hideAttribution: true }}
         className="dark"
       >

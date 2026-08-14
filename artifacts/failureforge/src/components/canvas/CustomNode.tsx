@@ -5,6 +5,7 @@ import { ComponentType } from '../../types/architecture';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { NodeStory, OperationalVisualState } from '../../engine/visualStorytelling';
+import { getAwsServicePreset } from '../../lib/awsServicePresets';
 
 const iconMap: Record<ComponentType, React.ElementType> = {
   "users": Users,
@@ -36,6 +37,8 @@ export default function CustomNode({ data, selected }: any) {
   const isSimulation = story?.presentationMode === "simulation";
   const isComparison = story?.presentationMode === "comparison";
   const isPresenting = data.designerMode === "present";
+  const awsPreset = getAwsServicePreset(data);
+  const awsIcon = awsPreset.id === "users" ? null : `${import.meta.env.BASE_URL}aws-icons/${awsPreset.id}.svg`;
 
   return (
     <motion.div 
@@ -66,7 +69,7 @@ export default function CustomNode({ data, selected }: any) {
       <div className="p-3 space-y-3">
         <div className="flex items-start gap-3">
           <div className={cn("relative w-11 h-11 rounded-md flex items-center justify-center text-white bg-bg-deep border", styles.border)}>
-            <Icon className="w-5 h-5" />
+            {awsIcon ? <img src={awsIcon} alt="" className="h-6 w-6 object-contain" /> : <Icon className="w-5 h-5" />}
             {isProtected && <span className="absolute -right-1 -bottom-1 rounded-full bg-app-cyan p-0.5"><Shield className="w-3 h-3 text-bg-deep" /></span>}
             {isFailed && <span className="absolute -right-1 -bottom-1 rounded-full bg-app-red p-0.5"><AlertTriangle className="w-3 h-3 text-bg-deep" /></span>}
           </div>
@@ -75,7 +78,7 @@ export default function CustomNode({ data, selected }: any) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-bold leading-tight">{data.name}</div>
-                <div className="truncate text-[11px] text-text-secondary">{story?.subtitle ?? "Component"} - {story?.role ?? data.type}</div>
+                <div className="truncate text-[11px] text-text-secondary">{awsPreset.shortName} · {story?.role ?? data.type}</div>
               </div>
               <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase", styles.border, styles.text)}>
                 {styles.label}
